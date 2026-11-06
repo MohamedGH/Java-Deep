@@ -1,4 +1,27 @@
-export type RouteType = 'chapters' | 'stepper' | 'visualizer' | 'bytecode' | 'cvsjava' | 'playground' | 'quizzes' | 'tests';
+export type RouteType = 'chapters' | 'stepper' | 'vtable' | 'visualizer' | 'bytecode' | 'history' | 'cvsjava' | 'playground' | 'quizzes' | 'tests';
+
+export interface JavaVersionRelease {
+  version: string;
+  year: number;
+  codename?: string;
+  isLts: boolean;
+  status: 'Active LTS' | 'Historic' | 'Latest';
+  era: 'Foundation' | 'Generics & Concurrency' | 'Functional Revolution' | 'Modular & Rapid Cadence' | 'Modern Loom & Panama';
+  description: {
+    fr: string;
+    en: string;
+  };
+  jvmChanges: {
+    fr: string;
+    en: string;
+  };
+  features: Array<{
+    name: string;
+    description: { fr: string; en: string };
+    codeSnippet?: string;
+    cComparison?: { fr: string; en: string };
+  }>;
+}
 
 export type Language = 'fr' | 'en';
 

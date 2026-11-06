@@ -4,8 +4,10 @@ import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { ChapterView } from './components/ChapterView';
 import { ExecutionStepperView } from './components/ExecutionStepperView';
+import { VTableView } from './components/VTableView';
 import { JvmVisualizer } from './components/JvmVisualizer';
 import { BytecodeModifierView } from './components/BytecodeModifierView';
+import { JavaHistoryView } from './components/JavaHistoryView';
 import { CvsJavaView } from './components/CvsJavaView';
 import { PlaygroundView } from './components/PlaygroundView';
 import { QuizView } from './components/QuizView';
@@ -22,8 +24,12 @@ export default function App() {
         return <ChapterView />;
       case 'stepper':
         return <ExecutionStepperView />;
+      case 'vtable':
+        return <VTableView />;
       case 'bytecode':
         return <BytecodeModifierView />;
+      case 'history':
+        return <JavaHistoryView />;
       case 'visualizer':
         return <JvmVisualizer />;
       case 'cvsjava':

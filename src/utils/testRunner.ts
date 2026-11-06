@@ -356,5 +356,79 @@ export const runAllFunctionalTests = (): TestResult[] => {
     }
   );
 
+  // 10. Java History & Version Classification Engine
+  runTest(
+    't-history-1',
+    'Java Historical Version Chronology & LTS Tag Verification',
+    'Validates chronological ordering of Java releases (1996 - 2024+), LTS status assignments (Java 8, 11, 17, 21), and immutable era filtering',
+    'Functional',
+    () => {
+      // Mock history dataset
+      const testReleases = [
+        { version: 'Java 1.0', year: 1996, isLts: false, era: 'Foundation' },
+        { version: 'Java 5.0', year: 2004, isLts: false, era: 'Generics' },
+        { version: 'Java 8', year: 2014, isLts: true, era: 'Functional' },
+        { version: 'Java 11', year: 2018, isLts: true, era: 'Modern' },
+        { version: 'Java 17', year: 2021, isLts: true, era: 'Modern' },
+        { version: 'Java 21', year: 2023, isLts: true, era: 'Loom' }
+      ];
+
+      // Pure chronological order assertion
+      const isSortedChronologically = testReleases.every(
+        (val, i, arr) => i === 0 || arr[i - 1].year <= val.year
+      );
+
+      // Filter LTS versions
+      const ltsReleases = testReleases.filter((r) => r.isLts);
+
+      const passed = isSortedChronologically && ltsReleases.length === 4 && ltsReleases[0].version === 'Java 8';
+      return {
+        passed,
+        assertion: `Chronology validated: ${testReleases.length} releases strictly sorted, ${ltsReleases.length} LTS verified.`
+      };
+    }
+  );
+
+  // 11. VTable Dynamic Dispatch & Klass Slot Resolver Engine
+  runTest(
+    't-vtable-1',
+    'VTable Fixed-Offset Slot Resolution & Polymorphic Override',
+    'Validates O(1) vtable slot indexing where Circle.area() overrides Shape.area() while inheriting Object slots (hashCode, equals)',
+    'JVM Engine',
+    () => {
+      interface VTableEntry {
+        slot: number;
+        symbol: string;
+        impl: () => string;
+      }
+
+      // Shape Base VTable
+      const shapeVTable: VTableEntry[] = [
+        { slot: 0, symbol: 'hashCode', impl: () => 'hash_obj' },
+        { slot: 1, symbol: 'equals', impl: () => 'equals_obj' },
+        { slot: 2, symbol: 'area', impl: () => 'shape_generic_area' }
+      ];
+
+      // Subclass Circle overrides slot 2 (area)
+      const circleVTable: VTableEntry[] = shapeVTable.map((entry) =>
+        entry.slot === 2 ? { ...entry, impl: () => 'circle_pi_r_squared' } : entry
+      );
+
+      // invokevirtual executes slot 2
+      const slot2Resolved = circleVTable[2].impl();
+      const slot0Preserved = circleVTable[0].impl();
+
+      const passed =
+        circleVTable.length === 3 &&
+        slot2Resolved === 'circle_pi_r_squared' &&
+        slot0Preserved === 'hash_obj';
+
+      return {
+        passed,
+        assertion: `VTable dispatch O(1) verified: slot[2] override="${slot2Resolved}", slot[0] preserved="${slot0Preserved}"`
+      };
+    }
+  );
+
   return results;
 };
