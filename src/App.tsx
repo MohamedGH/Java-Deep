@@ -5,6 +5,7 @@ import { Footer } from './components/Footer';
 import { ChapterView } from './components/ChapterView';
 import { ExecutionStepperView } from './components/ExecutionStepperView';
 import { JvmVisualizer } from './components/JvmVisualizer';
+import { BytecodeModifierView } from './components/BytecodeModifierView';
 import { CvsJavaView } from './components/CvsJavaView';
 import { PlaygroundView } from './components/PlaygroundView';
 import { QuizView } from './components/QuizView';
@@ -21,6 +22,8 @@ export default function App() {
         return <ChapterView />;
       case 'stepper':
         return <ExecutionStepperView />;
+      case 'bytecode':
+        return <BytecodeModifierView />;
       case 'visualizer':
         return <JvmVisualizer />;
       case 'cvsjava':

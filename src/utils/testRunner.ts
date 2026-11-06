@@ -290,5 +290,71 @@ export const runAllFunctionalTests = (): TestResult[] => {
     }
   );
 
+  // 9. Bytecode Modification & Opcode Patcher Engine
+  runTest(
+    't-bytecode-1',
+    'Bytecode Modification & Opcode Replacement Virtual Machine',
+    'Simulates ClassFileTransformer modifying opcodes (e.g. iadd -> imul, constant patching) and validates operand stack evaluation',
+    'JVM Engine',
+    () => {
+      interface BytecodeOp {
+        opcode: 'bipush' | 'iadd' | 'imul' | 'isub' | 'ireturn';
+        arg?: number;
+      }
+
+      // Simple operand stack VM evaluator
+      const executeBytecode = (ops: BytecodeOp[]): number => {
+        const stack: number[] = [];
+        for (const op of ops) {
+          if (op.opcode === 'bipush' && op.arg !== undefined) {
+            stack.push(op.arg);
+          } else if (op.opcode === 'iadd') {
+            const b = stack.pop()!;
+            const a = stack.pop()!;
+            stack.push(a + b);
+          } else if (op.opcode === 'imul') {
+            const b = stack.pop()!;
+            const a = stack.pop()!;
+            stack.push(a * b);
+          } else if (op.opcode === 'isub') {
+            const b = stack.pop()!;
+            const a = stack.pop()!;
+            stack.push(a - b);
+          } else if (op.opcode === 'ireturn') {
+            return stack.pop()!;
+          }
+        }
+        return stack.pop() || 0;
+      };
+
+      // 1. Original bytecode: 10 + 5 = 15
+      const originalOps: BytecodeOp[] = [
+        { opcode: 'bipush', arg: 10 },
+        { opcode: 'bipush', arg: 5 },
+        { opcode: 'iadd' },
+        { opcode: 'ireturn' }
+      ];
+      const origRes = executeBytecode(originalOps);
+
+      // 2. Modified bytecode: patch 'iadd' to 'imul' (10 * 5 = 50)
+      const patchedOps: BytecodeOp[] = originalOps.map((op) =>
+        op.opcode === 'iadd' ? { opcode: 'imul' } : op
+      );
+      const patchedRes = executeBytecode(patchedOps);
+
+      // 3. Modified constant: patch 10 to 20 (20 * 5 = 100)
+      const patchedConstantOps: BytecodeOp[] = patchedOps.map((op, idx) =>
+        idx === 0 ? { ...op, arg: 20 } : op
+      );
+      const patchedConstRes = executeBytecode(patchedConstantOps);
+
+      const passed = origRes === 15 && patchedRes === 50 && patchedConstRes === 100;
+      return {
+        passed,
+        assertion: `Bytecode patched successfully: original iadd=${origRes}, patched imul=${patchedRes}, patched arg=${patchedConstRes}`
+      };
+    }
+  );
+
   return results;
 };

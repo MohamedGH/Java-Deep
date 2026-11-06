@@ -2102,6 +2102,207 @@ struct InnerHelper {
         en: "Spot on! The Java compiler injects a synthetic 'this$0' field into every non-static Inner Class. As long as the inner instance exists, the outer instance cannot be collected by the GC!"
       }
     }
+  },
+  {
+    id: 'ch-12',
+    title: {
+      fr: '12. Modification de Bytecode, Instrumentation & Java Agents',
+      en: '12. Bytecode Modification, Instrumentation & Java Agents'
+    },
+    subtitle: {
+      fr: 'ASM, ByteBuddy, ClassFileTransformer et interception dynamique en RAM',
+      en: 'ASM, ByteBuddy, ClassFileTransformer and dynamic in-memory interception'
+    },
+    category: 'Advanced',
+    estimatedTime: '20 min',
+    iconName: 'Binary',
+    summary: {
+      fr: "Modifier le bytecode permet d'injecter du code à la volée sans recompiler les sources. C'est le cœur des frameworks AOP (Spring, Quarkus), des outils de mock (Mockito), des profileurs de performance (New Relic, Datadog) et des agents de sécurité. La JVM permet d'intercepter les classes via les Java Agents (-javaagent) et ClassFileTransformer avant leur entrée dans le Metaspace.",
+      en: "Modifying bytecode injects instructions on the fly without recompilation. It powers Spring AOP, Mockito, and APM profilers. The JVM intercepts classes via Java Agents (-javaagent) and ClassFileTransformer before Metaspace ingestion."
+    },
+    codeSnippet: `import java.lang.instrument.*;
+import java.security.ProtectionDomain;
+
+public class PerformanceAgent {
+    // Point d'entrée de l'agent JVM exécuté AVANT main() !
+    public static void premain(String agentArgs, Instrumentation inst) {
+        inst.addTransformer(new ClassFileTransformer() {
+            @Override
+            public byte[] transform(ClassLoader loader, String className,
+                                    Class<?> classBeingRedefined,
+                                    ProtectionDomain protectionDomain,
+                                    byte[] classfileBuffer) {
+                // Interception du flux d'octets du .class
+                if (className != null && className.equals("com/app/PaymentService")) {
+                    return injectTimingBytecode(classfileBuffer);
+                }
+                return classfileBuffer; // Non modifié
+            }
+        });
+    }
+}`,
+    lineBreakdown: [
+      {
+        lineNumber: 5,
+        code: 'public class PerformanceAgent {',
+        explanation: {
+          fr: "Déclaration d'un Java Agent. Un agent Java est packagé dans un fichier JAR avec un en-tête MANIFEST.MF spécifiant 'Premain-Class'.",
+          en: "Java Agent declaration packaged into a JAR with 'Premain-Class' header in MANIFEST.MF."
+        }
+      },
+      {
+        lineNumber: 6,
+        code: '    public static void premain(String agentArgs, Instrumentation inst) {',
+        explanation: {
+          fr: "'premain' est le point d'entrée universel exécuté par la JVM avant même la première ligne de votre méthode main() !",
+          en: "'premain' is invoked by the JVM before your application main() method ever executes!"
+        },
+        memoryHint: {
+          fr: "Exécuté avant tout chargement de classe applicative.",
+          en: "Runs before any application class is loaded into memory."
+        }
+      },
+      {
+        lineNumber: 7,
+        code: '        inst.addTransformer(new ClassFileTransformer() {',
+        explanation: {
+          fr: "Enregistre un transformateur de classes (ClassFileTransformer) auprès du moteur de chargement de la JVM.",
+          en: "Registers a ClassFileTransformer with the JVM ClassLoader pipeline."
+        }
+      },
+      {
+        lineNumber: 12,
+        code: '                                    byte[] classfileBuffer) {',
+        explanation: {
+          fr: "'classfileBuffer' contient la séquence brute des octets du fichier .class (Magic Number 0xCAFEBABE, Constant Pool, Bytecodes). C'est ce tableau que l'on modifie avec des bibliothèques comme ASM ou ByteBuddy !",
+          en: "'classfileBuffer' holds the raw .class bytes (0xCAFEBABE, constant pool, opcodes) which ASM or ByteBuddy modifies."
+        },
+        memoryHint: {
+          fr: "Tableau d'octets temporaire intercepté avant allocation Metaspace.",
+          en: "Temporary byte array intercepted before Metaspace ingestion."
+        }
+      }
+    ],
+    bytecode: [
+      { offset: 0, opcode: 'invokestatic #2 <System.nanoTime>', comment: { fr: 'INJECTION AGENT: capture temps départ (t0)', en: 'AGENT INJECTION: capture start time (t0)' } },
+      { offset: 3, opcode: 'lstore_1', comment: { fr: 'Stocke t0 dans variable locale', en: 'Store t0 in local slot' } },
+      { offset: 4, opcode: 'iload_0', comment: { fr: 'Code d\'origine: charge paramètre', en: 'Original code: load param' } },
+      { offset: 5, opcode: 'invokevirtual #3 <processPayment>', comment: { fr: 'Code d\'origine: exécute méthode', en: 'Original code: invoke method' } },
+      { offset: 8, opcode: 'invokestatic #2 <System.nanoTime>', comment: { fr: 'INJECTION AGENT: capture temps fin (t1)', en: 'AGENT INJECTION: capture end time (t1)' } },
+      { offset: 11, opcode: 'lload_1', comment: { fr: 'Charge t0', en: 'Load t0' } },
+      { offset: 12, opcode: 'lsub', comment: { fr: 'Calcule (t1 - t0) en nanosecondes', en: 'Compute (t1 - t0) elapsed' } },
+      { offset: 13, opcode: 'invokestatic #4 <MetricLogger.record>', comment: { fr: 'INJECTION AGENT: log métrique APM', en: 'AGENT INJECTION: log APM metric' } }
+    ],
+    cComparison: {
+      cCode: `// En C: Hooking binaire par LD_PRELOAD
+#define _GNU_SOURCE
+#include <stdio.h>
+#include <dlfcn.h>
+
+// Interception de fonction au niveau de l'éditeur de liens dynamique
+int open(const char *pathname, int flags) {
+    int (*original_open)(const char*, int) = dlsym(RTLD_NEXT, "open");
+    printf("[HOOK C] Ouverture de: %s\\n", pathname);
+    return original_open(pathname, flags);
+}`,
+      explanation: {
+        fr: "En C, intercepter ou modifier du code nécessite soit LD_PRELOAD (hooking au niveau de la glibc), soit d'écraser la mémoire (.text) avec mprotect, avec un risque majeur de crash. En Java, l'API Instrumentation est native, standardisée et vérifiée par le Bytecode Verifier.",
+        en: "In C, binary hooking requires LD_PRELOAD or mprotect memory hacking. In Java, Instrumentation API is standard, safe, and stack-verified."
+      },
+      memoryDifference: {
+        fr: "C: Modification de pointeurs de fonction GOT/PLT ou code binaire x86 en RAM. Java: Réécriture de structures de classes vérifiées avant chargement dans le Metaspace.",
+        en: "C: GOT/PLT table hijacking or direct machine code patching. Java: Type-safe bytecode restructuring before Metaspace ingestion."
+      }
+    },
+    executionSteps: [
+      {
+        stepIndex: 0,
+        lineNumber: 6,
+        programCounter: 0,
+        description: {
+          fr: "Lancement de la JVM avec -javaagent:agent.jar. La méthode premain() s'exécute en premier.",
+          en: "JVM booted with -javaagent:agent.jar. premain() runs before main()."
+        },
+        stackFrames: [
+          { method: 'PerformanceAgent.premain()', variables: [{ name: 'inst', type: 'Instrumentation', value: '@0xINST1', isRef: true }], operandStack: [] }
+        ],
+        heapObjects: [
+          { id: 'agent-1', address: '@0xINST1', className: 'sun.instrument.InstrumentationImpl', fields: { activeTransformers: '1' }, isGarbage: false }
+        ],
+        stdout: ['[JavaAgent] Instrumentation hook registered.']
+      },
+      {
+        stepIndex: 1,
+        lineNumber: 12,
+        programCounter: 5,
+        description: {
+          fr: "La classe PaymentService est demandée. Le ClassFileTransformer intercepte le tableau byte[] et injecte les opcodes de profilage.",
+          en: "PaymentService is requested. ClassFileTransformer intercepts raw byte[] and injects profiling opcodes."
+        },
+        stackFrames: [
+          { method: 'ClassFileTransformer.transform()', variables: [{ name: 'className', type: 'String', value: '"PaymentService"' }], operandStack: [] }
+        ],
+        heapObjects: [
+          { id: 'bc-mod', address: '@0xBC_MOD', className: 'byte[] (Transformed Bytecode)', fields: { size: '1024 bytes', injectedOpcodes: 'nanoTime, lsub' }, isGarbage: false }
+        ],
+        stdout: ['[JavaAgent] Bytecode patched for PaymentService: injected timing probes.']
+      },
+      {
+        stepIndex: 2,
+        lineNumber: 16,
+        programCounter: 10,
+        description: {
+          fr: "La classe modifiée est validée par le Bytecode Verifier et chargée dans le Metaspace. Son exécution mesure désormais le temps automatiquement !",
+          en: "Patched class verified and loaded into Metaspace. Now tracks execution duration automatically!"
+        },
+        stackFrames: [
+          { method: 'PaymentService.processPayment()', variables: [{ name: 'elapsedNs', type: 'long', value: '412000' }], operandStack: [] }
+        ],
+        heapObjects: [],
+        stdout: ['[APM Metric] PaymentService.processPayment() executed in 0.41ms']
+      }
+    ],
+    jvmMemoryNotes: {
+      fr: "Après modification par un agent, la JVM soumet le nouveau bytecode au 'Bytecode Verifier' (StackMapTable, absence de dépassement de pile, sécurité des types). Si la modification est invalide, la JVM lève 'VerifyError' ou 'ClassFormatError', protégeant l'OS de toute corruption mémoire.",
+      en: "The Bytecode Verifier inspects transformed bytes (StackMapTable, type safety). Invalid transformations trigger 'VerifyError', preventing crashes."
+    },
+    commonPitfalls: {
+      fr: [
+        "Modifier le bytecode sans recalculer correctement la taille maximale de la pile d'opérandes (max_stack) ou des variables locales (max_locals). Utiliser ASM avec ClassWriter.COMPUTE_FRAMES pour l'automatiser.",
+        "Tenter d'ajouter de nouveaux champs d'instance lors d'un 'retransformClasses' à chaud (la JVM interdit de modifier la structure mémoire des classes déjà chargées en production sans Dcevm)."
+      ],
+      en: [
+        "Altering bytecode without updating max_stack or max_locals (use ClassWriter.COMPUTE_FRAMES).",
+        "Attempting to add fields during runtime class redefinition (disallowed by standard JVM spec)."
+      ]
+    },
+    quiz: {
+      id: 'q-12',
+      question: {
+        fr: "Quelle interface de la JVM permet à un Java Agent d'intercepter et de modifier le tableau d'octets d'un fichier .class avant son chargement ?",
+        en: "Which JVM interface allows a Java Agent to intercept and modify raw .class byte arrays before class loading?"
+      },
+      options: {
+        fr: [
+          "ClassFileTransformer (via l'API java.lang.instrument)",
+          "Serializable",
+          "ThreadLocalAllocationBuffer",
+          "GarbageCollectorMXBean"
+        ],
+        en: [
+          "ClassFileTransformer (via java.lang.instrument API)",
+          "Serializable",
+          "ThreadLocalAllocationBuffer",
+          "GarbageCollectorMXBean"
+        ]
+      },
+      correctIndex: 0,
+      explanation: {
+        fr: "Exact ! ClassFileTransformer fournit la méthode transform(..., byte[] classfileBuffer) qui permet de réécrire les octets du bytecode avant que la classe ne soit validée et chargée dans le Metaspace.",
+        en: "Spot on! ClassFileTransformer provides transform(..., byte[] classfileBuffer) to inspect and rewrite bytecode before Metaspace ingestion."
+      }
+    }
   }
 ];
+
 

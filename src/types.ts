@@ -1,4 +1,4 @@
-export type RouteType = 'chapters' | 'stepper' | 'visualizer' | 'cvsjava' | 'playground' | 'quizzes' | 'tests';
+export type RouteType = 'chapters' | 'stepper' | 'visualizer' | 'bytecode' | 'cvsjava' | 'playground' | 'quizzes' | 'tests';
 
 export type Language = 'fr' | 'en';
 

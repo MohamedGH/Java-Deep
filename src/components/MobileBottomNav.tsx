@@ -1,7 +1,7 @@
 import React from 'react';
 import { useJavaStore } from '../store/useJavaStore';
 import { RouteType } from '../types';
-import { BookOpen, PlayCircle, Cpu, SplitSquareVertical, Award } from 'lucide-react';
+import { BookOpen, PlayCircle, Cpu, SplitSquareVertical, Award, Binary } from 'lucide-react';
 
 export const MobileBottomNav: React.FC = () => {
   const { currentRoute, setRoute, language } = useJavaStore();
@@ -9,9 +9,9 @@ export const MobileBottomNav: React.FC = () => {
   const tabs: Array<{ id: RouteType; label: { fr: string; en: string }; icon: React.ReactNode }> = [
     { id: 'chapters', label: { fr: 'Cours', en: 'Lessons' }, icon: <BookOpen className="w-4 h-4" /> },
     { id: 'stepper', label: { fr: 'Pas-à-Pas', en: 'Stepper' }, icon: <PlayCircle className="w-4 h-4" /> },
+    { id: 'bytecode', label: { fr: 'Bytecode', en: 'Bytecode' }, icon: <Binary className="w-4 h-4" /> },
     { id: 'visualizer', label: { fr: 'Mémoire', en: 'Memory' }, icon: <Cpu className="w-4 h-4" /> },
-    { id: 'cvsjava', label: { fr: 'C vs Java', en: 'C vs Java' }, icon: <SplitSquareVertical className="w-4 h-4" /> },
-    { id: 'quizzes', label: { fr: 'Quiz', en: 'Quizzes' }, icon: <Award className="w-4 h-4" /> }
+    { id: 'cvsjava', label: { fr: 'C vs Java', en: 'C vs Java' }, icon: <SplitSquareVertical className="w-4 h-4" /> }
   ];
 
   return (
