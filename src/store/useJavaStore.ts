@@ -1,10 +1,13 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { RouteType, TestResult } from '../types';
+import { RouteType, TestResult, Language } from '../types';
+import { runAllFunctionalTests } from '../utils/testRunner';
+import { JAVA_CHAPTERS } from '../data/javaChapters';
 
 interface JavaStoreState {
   currentRoute: RouteType;
   selectedChapterId: string;
+  language: Language;
   completedChapters: string[];
   bookmarkedChapters: string[];
   quizScores: Record<string, number>;
@@ -12,15 +15,31 @@ interface JavaStoreState {
   errors: string[];
   testResults: TestResult[];
   
+  // Stepper State
+  stepperIndex: number;
+  isStepperPlaying: boolean;
+  stepperSpeedMs: number;
+
   // Actions
   setRoute: (route: RouteType) => void;
   setSelectedChapterId: (id: string) => void;
+  setLanguage: (lang: Language) => void;
   toggleCompleteChapter: (id: string) => void;
   toggleBookmarkChapter: (id: string) => void;
   setQuizScore: (chapterId: string, score: number) => void;
   addCustomSnippet: (title: string, code: string) => void;
   addError: (errorMsg: string) => void;
   clearErrors: () => void;
+  
+  // Stepper actions
+  setStepperIndex: (idx: number) => void;
+  nextStepperStep: () => void;
+  prevStepperStep: () => void;
+  resetStepper: () => void;
+  setIsStepperPlaying: (playing: boolean) => void;
+  setStepperSpeedMs: (speed: number) => void;
+
+  // Functional test suite
   runTestSuite: () => void;
 }
 
@@ -29,26 +48,32 @@ export const useJavaStore = create<JavaStoreState>()(
     (set, get) => ({
       currentRoute: 'chapters',
       selectedChapterId: 'ch-1',
+      language: 'fr',
       completedChapters: [],
       bookmarkedChapters: [],
       quizScores: {},
       customSnippets: [
         {
           id: 'snip-1',
-          title: 'Singleton Pattern in Java',
-          code: 'public class DatabaseConnection {\n    private static DatabaseConnection instance;\n    private DatabaseConnection() {}\n    public static synchronized DatabaseConnection getInstance() {\n        if (instance == null) {\n            instance = new DatabaseConnection();\n        }\n        return instance;\n    }\n}'
+          title: 'Singleton Thread-Safe en Java (Bill Pugh)',
+          code: 'public class DatabaseConnection {\n    private DatabaseConnection() {}\n    private static class Holder {\n        private static final DatabaseConnection INSTANCE = new DatabaseConnection();\n    }\n    public static DatabaseConnection getInstance() {\n        return Holder.INSTANCE;\n    }\n}'
+        },
+        {
+          id: 'snip-2',
+          title: 'Stream Pipeline & Filter',
+          code: 'import java.util.*;\nimport java.util.stream.*;\n\npublic class QuickStream {\n    public static void main(String[] args) {\n        List<String> names = List.of("Java", "Babel", "C", "JVM");\n        names.stream().filter(s -> s.length() > 3).forEach(System.out::println);\n    }\n}'
         }
       ],
       errors: [],
-      testResults: [
-        { id: 't-1', name: 'Zustand Store Initialization', status: 'passed', durationMs: 2 },
-        { id: 't-2', name: 'Chapter Progress Immutable Updater', status: 'passed', durationMs: 3 },
-        { id: 't-3', name: 'JVM Memory Allocation Evaluator', status: 'passed', durationMs: 5 },
-        { id: 't-4', name: 'AI Code Parser Schema Validator', status: 'passed', durationMs: 4 }
-      ],
+      testResults: runAllFunctionalTests(),
+
+      stepperIndex: 0,
+      isStepperPlaying: false,
+      stepperSpeedMs: 1500,
 
       setRoute: (route) => set({ currentRoute: route }),
-      setSelectedChapterId: (id) => set({ selectedChapterId: id }),
+      setSelectedChapterId: (id) => set({ selectedChapterId: id, stepperIndex: 0, isStepperPlaying: false }),
+      setLanguage: (lang) => set({ language: lang }),
       
       toggleCompleteChapter: (id) =>
         set((state) => {
@@ -79,26 +104,48 @@ export const useJavaStore = create<JavaStoreState>()(
         })),
 
       addError: (errorMsg) =>
-        set((state) => ({
-          errors: [...state.errors, errorMsg]
-        })),
+        set((state) => {
+          if (state.errors.includes(errorMsg)) return state;
+          return { errors: [...state.errors, errorMsg] };
+        }),
 
       clearErrors: () => set({ errors: [] }),
 
+      setStepperIndex: (idx) => set({ stepperIndex: idx }),
+      nextStepperStep: () => {
+        const state = get();
+        const ch = JAVA_CHAPTERS.find((c) => c.id === state.selectedChapterId) || JAVA_CHAPTERS[0];
+        const max = ch.executionSteps.length - 1;
+        if (state.stepperIndex < max) {
+          set({ stepperIndex: state.stepperIndex + 1 });
+        } else {
+          set({ isStepperPlaying: false });
+        }
+      },
+      prevStepperStep: () => {
+        const state = get();
+        if (state.stepperIndex > 0) {
+          set({ stepperIndex: state.stepperIndex - 1 });
+        }
+      },
+      resetStepper: () => set({ stepperIndex: 0, isStepperPlaying: false }),
+      setIsStepperPlaying: (playing) => set({ isStepperPlaying: playing }),
+      setStepperSpeedMs: (speed) => set({ stepperSpeedMs: speed }),
+
       runTestSuite: () => {
-        const results: TestResult[] = [
-          { id: 't-1', name: 'Zustand Store Initialization', status: 'passed', durationMs: Math.floor(Math.random() * 5) + 1 },
-          { id: 't-2', name: 'Chapter Progress Immutable Updater', status: 'passed', durationMs: Math.floor(Math.random() * 6) + 2 },
-          { id: 't-3', name: 'JVM Memory Allocation Evaluator', status: 'passed', durationMs: Math.floor(Math.random() * 8) + 3 },
-          { id: 't-4', name: 'AI Code Parser Schema Validator', status: 'passed', durationMs: Math.floor(Math.random() * 5) + 2 },
-          { id: 't-5', name: 'Functional Array Mapping & Reducer Tests', status: 'passed', durationMs: Math.floor(Math.random() * 4) + 1 },
-          { id: 't-6', name: 'Route Navigation Manager State Check', status: 'passed', durationMs: Math.floor(Math.random() * 3) + 1 }
-        ];
+        const results = runAllFunctionalTests();
         set({ testResults: results });
       }
     }),
     {
-      name: 'javbabel-storage-v1'
+      name: 'javbabel-storage-v2',
+      partialize: (state) => ({
+        completedChapters: state.completedChapters,
+        bookmarkedChapters: state.bookmarkedChapters,
+        quizScores: state.quizScores,
+        customSnippets: state.customSnippets,
+        language: state.language
+      })
     }
   )
 );

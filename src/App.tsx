@@ -3,11 +3,14 @@ import { useJavaStore } from './store/useJavaStore';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { ChapterView } from './components/ChapterView';
+import { ExecutionStepperView } from './components/ExecutionStepperView';
 import { JvmVisualizer } from './components/JvmVisualizer';
+import { CvsJavaView } from './components/CvsJavaView';
 import { PlaygroundView } from './components/PlaygroundView';
 import { QuizView } from './components/QuizView';
 import { TestSuiteView } from './components/TestSuiteView';
 import { ErrorToast } from './components/ErrorToast';
+import { MobileBottomNav } from './components/MobileBottomNav';
 
 export default function App() {
   const { currentRoute } = useJavaStore();
@@ -16,8 +19,12 @@ export default function App() {
     switch (currentRoute) {
       case 'chapters':
         return <ChapterView />;
+      case 'stepper':
+        return <ExecutionStepperView />;
       case 'visualizer':
         return <JvmVisualizer />;
+      case 'cvsjava':
+        return <CvsJavaView />;
       case 'playground':
         return <PlaygroundView />;
       case 'quizzes':
@@ -30,12 +37,13 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950 pb-16 lg:pb-0">
       <Navbar />
       <main className="flex-1">
         {renderActiveRoute()}
       </main>
       <Footer />
+      <MobileBottomNav />
       <ErrorToast />
     </div>
   );
