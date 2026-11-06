@@ -1,0 +1,6 @@
+{
+  "name": "JavaBabel - Interactive Java Learning & JVM Visualizer",
+  "description": "An interactive, Babel-IT inspired Java learning platform with line-by-line code dissection, JVM memory visualizers, AI code explanations, and comprehensive test suites.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
