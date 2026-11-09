@@ -2302,6 +2302,463 @@ int open(const char *pathname, int flags) {
         en: "Spot on! ClassFileTransformer provides transform(..., byte[] classfileBuffer) to inspect and rewrite bytecode before Metaspace ingestion."
       }
     }
+  },
+  {
+    id: 'ch-13',
+    title: {
+      fr: '13. Modificateurs: static, private, protected & Empreinte Mémoire',
+      en: '13. Modifiers: static, private, protected & Memory Footprint'
+    },
+    subtitle: {
+      fr: 'Metaspace vs Tas, invokestatic vs invokespecial vs invokevirtual, access_flags et sécurité',
+      en: 'Metaspace vs Heap, invokestatic vs invokespecial vs invokevirtual, access_flags & security'
+    },
+    category: 'Memory & JVM',
+    estimatedTime: '22 min',
+    iconName: 'Shield',
+    summary: {
+      fr: "Quelle est la différence physique en mémoire et à la compilation entre un champ static ou d'instance, et entre private, protected et public ? Un champ static n'existe qu'en UN SEUL exemplaire dans le miroir de classe (Metaspace), tandis qu'un champ d'instance est dupliqué dans CHAQUE objet sur le Tas (avec 16 octets d'en-tête). À la compilation, les modificateurs sont encodés dans les access_flags (16 bits) et dictent les opcodes de la JVM : invokestatic (sans référence this), invokespecial (appel direct non-virtuel) et invokevirtual (recherche polymorphe via la VTable).",
+      en: "What are the exact memory and compilation differences between static and instance fields, and private vs protected vs public? Static fields reside in a single slot in Metaspace (Class mirror), whereas instance fields duplicate inside every single Heap object with 16-byte object headers. At compile time, access_flags (16-bit) govern access, and determine opcodes: invokestatic (no this), invokespecial (direct non-virtual), and invokevirtual (dynamic VTable dispatch)."
+    },
+    codeSnippet: `public class BankVault {
+    // 1 seul exemplaire en mémoire (Metaspace / Class mirror)
+    public static int globalVaultCount = 0;
+    
+    // Dupliqué dans CHAQUE instance sur le Tas (+ 16B Object Header)
+    private double goldBalance;
+    protected String securityCode;
+    
+    public BankVault(double initialGold, String code) {
+        this.goldBalance = initialGold;
+        this.securityCode = code;
+        globalVaultCount++; // putstatic
+    }
+    
+    // invokestatic: AUCUN pointeur "this" en Slot 0 des variables locales !
+    public static int getGlobalCount() {
+        return globalVaultCount; // getstatic
+    }
+    
+    // invokespecial: liaison directe non-virtuelle (pas de slot VTable)
+    private void auditInternalSafety() {
+        // Accès interne direct
+    }
+    
+    // invokevirtual: Slot 0 = "this", résolution dynamique via VTable
+    public void depositGold(double amount) {
+        this.goldBalance += amount; // putfield
+    }
+}`,
+    lineBreakdown: [
+      {
+        lineNumber: 3,
+        code: '    public static int globalVaultCount = 0;',
+        explanation: {
+          fr: "Champ 'static': Alloué une seule fois dans l'objet miroir java.lang.Class stocké dans le Metaspace. Même avec 1 000 000 d'instances de coffres, il n'occupe que 4 octets en RAM !",
+          en: "'static' field: Allocated once in the java.lang.Class mirror object in Metaspace. Consumes only 4 bytes even with 1,000,000 instances!"
+        },
+        memoryHint: {
+          fr: "4 octets dans le Metaspace, partagé par tous les threads.",
+          en: "4 bytes in Metaspace, shared across all threads."
+        }
+      },
+      {
+        lineNumber: 6,
+        code: '    private double goldBalance;',
+        explanation: {
+          fr: "Champ d'instance non-statique: Chaque 'new BankVault()' réserve 8 octets pour ce double sur le Tas, plus 16 octets d'en-tête (Mark Word + Klass Pointer). Le mot-clé 'private' active le flag binaire ACC_PRIVATE (0x0002) dans la table des champs du .class.",
+          en: "Instance field: Every 'new' allocates 8 bytes on Heap + 16 bytes object header. 'private' sets ACC_PRIVATE (0x0002) flag."
+        },
+        memoryHint: {
+          fr: "8 octets * N instances sur le Tas + surcoût des en-têtes.",
+          en: "8 bytes * N instances on Heap + header overhead."
+        }
+      },
+      {
+        lineNumber: 16,
+        code: '    public static int getGlobalCount() {',
+        explanation: {
+          fr: "Méthode 'static': Appelée via l'opcode 'invokestatic'. Particularité majeure : la table des variables locales ne contient PAS de pointeur 'this' à l'index 0. C'est pourquoi 'this.quelqueChose' est une erreur de compilation dans une méthode static !",
+          en: "'static' method: Called via 'invokestatic'. Slot 0 of Local Variables does NOT contain 'this'. That is why using 'this' in a static method fails compilation!"
+        }
+      },
+      {
+        lineNumber: 21,
+        code: '    private void auditInternalSafety() {',
+        explanation: {
+          fr: "Méthode 'private': Appelée via l'opcode 'invokespecial'. Comme elle est privée, aucune sous-classe ne peut la surcharger (override). La JVM effectue une liaison directe (statique) sans consommer d'entrée dans la VTable.",
+          en: "'private' method: Invoked via 'invokespecial'. Cannot be overridden by subclasses; JVM performs direct static linking without a VTable slot."
+        }
+      },
+      {
+        lineNumber: 26,
+        code: '    public void depositGold(double amount) {',
+        explanation: {
+          fr: "Méthode 'public' d'instance: Appelée via 'invokevirtual'. Le premier argument implicite (Slot 0) est obligatoirement 'this'. La JVM consulte la VTable de l'objet pour trouver l'adresse du code.",
+          en: "'public' instance method: Invoked via 'invokevirtual'. Slot 0 is always 'this'. JVM resolves target through the VTable."
+        }
+      }
+    ],
+    bytecode: [
+      { offset: 0, opcode: 'getstatic #2 <BankVault.globalVaultCount>', comment: { fr: 'Lit le champ statique dans le Metaspace (pas d\'objet)', en: 'Read static field in Metaspace (no object needed)' } },
+      { offset: 3, opcode: 'iconst_1', comment: { fr: 'Empile constante 1', en: 'Push constant 1' } },
+      { offset: 4, opcode: 'iadd', comment: { fr: 'Additionne', en: 'Add' } },
+      { offset: 5, opcode: 'putstatic #2 <BankVault.globalVaultCount>', comment: { fr: 'Écrit dans le Metaspace', en: 'Write back to Metaspace' } },
+      { offset: 8, opcode: 'aload_0', comment: { fr: 'Charge "this" (Slot 0)', en: 'Load "this" from local slot 0' } },
+      { offset: 9, opcode: 'dload_1', comment: { fr: 'Charge le paramètre amount', en: 'Load amount param' } },
+      { offset: 10, opcode: 'putfield #3 <BankVault.goldBalance>', comment: { fr: 'Écrit dans le champ de l\'objet sur le TAS', en: 'Write instance field on HEAP' } },
+      { offset: 13, opcode: 'invokestatic #4 <BankVault.getGlobalCount>', comment: { fr: 'Liaison directe statique (sans VTable)', en: 'Direct static link (no VTable)' } },
+      { offset: 16, opcode: 'invokespecial #5 <BankVault.auditInternalSafety>', comment: { fr: 'Liaison directe privée non-virtuelle', en: 'Direct private non-virtual call' } },
+      { offset: 19, opcode: 'invokevirtual #6 <BankVault.depositGold>', comment: { fr: 'Liaison dynamique virtuelle via VTable', en: 'Dynamic dispatch via VTable' } }
+    ],
+    cComparison: {
+      cCode: `// En C: static fichier / BSS vs structure
+// 1. "static" en C = portée limitée au fichier (unité de traduction),
+// logé dans le segment .BSS ou .DATA de l'exécutable ELF/PE
+static int global_vault_count = 0;
+
+// 2. Struct = équivalent des champs d'instance
+typedef struct {
+    double gold_balance;
+    char security_code[16];
+} BankVault;
+
+// 3. Méthode d'instance = passage explicite du pointeur "self"
+void deposit_gold(BankVault *self, double amount) {
+    if (self) self->gold_balance += amount;
+}`,
+      explanation: {
+        fr: "En C, 'static' signifie 'restreint au fichier source courant' et les variables résident dans les segments statiques .data/.bss. En C, il n'existe pas de modificateurs 'private' ou 'protected' au niveau du compilateur : toute fonction ou struct déclarée dans un header (.h) est publiquement accessible. En Java, 'static' signifie 'attaché à la classe' et les modificateurs de visibilité sont vérifiés à la fois par javac ET par le Bytecode Verifier de la JVM à l'exécution.",
+        en: "In C, 'static' limits scope to translation unit in .bss/.data segment. C lacks access modifiers: everything in headers is accessible. In Java, 'static' binds to the Class mirror, and visibility is enforced by both javac and the JVM Bytecode Verifier."
+      },
+      memoryDifference: {
+        fr: "C: static = segment .data/.bss brut en mémoire binaire fixe. Java: static = champs statiques encapsulés dans le miroir java.lang.Class dans le Metaspace.",
+        en: "C: Raw fixed memory in .data/.bss ELF section. Java: Metaspace java.lang.Class mirror instance managed by ClassLoader."
+      }
+    },
+    executionSteps: [
+      {
+        stepIndex: 0,
+        lineNumber: 3,
+        programCounter: 0,
+        description: {
+          fr: "Chargement de la classe BankVault. La JVM alloue le miroir java.lang.Class dans le Metaspace. Le champ static 'globalVaultCount' est initialisé à 0.",
+          en: "Loading BankVault class. Metaspace allocates java.lang.Class mirror with static globalVaultCount = 0."
+        },
+        stackFrames: [
+          { method: 'BankVault.<clinit>()', variables: [], operandStack: [] }
+        ],
+        heapObjects: [
+          { id: 'meta-vault', address: '@Metaspace:Class<BankVault>', className: 'java.lang.Class (Metaspace)', fields: { static_globalVaultCount: '0', access_flags: '0x0021 (PUBLIC, SUPER)' }, isGarbage: false }
+        ],
+        stdout: ['[JVM ClassLoader] Class BankVault loaded into Metaspace. Static fields initialized.']
+      },
+      {
+        stepIndex: 1,
+        lineNumber: 10,
+        programCounter: 5,
+        description: {
+          fr: "Instanciation 'new BankVault(500.0, \"SEC-99\")'. Un objet est alloué sur le Tas (24 octets de champs + 16 octets d'en-tête = 40 octets).",
+          en: "'new BankVault(500.0, \"SEC-99\")'. Heap allocates instance (24B fields + 16B header = 40 bytes total)."
+        },
+        stackFrames: [
+          {
+            method: 'BankVault.<init>()',
+            variables: [
+              { name: 'this', type: 'BankVault', value: '@0xVAULT1', isRef: true },
+              { name: 'initialGold', type: 'double', value: '500.0' },
+              { name: 'code', type: 'String', value: '"SEC-99"' }
+            ],
+            operandStack: []
+          }
+        ],
+        heapObjects: [
+          { id: 'meta-vault', address: '@Metaspace:Class<BankVault>', className: 'java.lang.Class (Metaspace)', fields: { static_globalVaultCount: '1' }, isGarbage: false },
+          { id: 'vault-1', address: '@0xVAULT1', className: 'BankVault', fields: { goldBalance: '500.0', securityCode: '"SEC-99"' }, isGarbage: false }
+        ],
+        stdout: ['[Heap] Allocated BankVault instance at @0xVAULT1. globalVaultCount incremented to 1.']
+      },
+      {
+        stepIndex: 2,
+        lineNumber: 17,
+        programCounter: 13,
+        description: {
+          fr: "Exécution de getGlobalCount() via 'invokestatic'. La JVM saute directement à l'adresse de la méthode sans passer par la VTable et sans instancier 'this'.",
+          en: "invokestatic BankVault.getGlobalCount(). JVM jumps directly to method code without VTable lookup and with no 'this' argument."
+        },
+        stackFrames: [
+          {
+            method: 'BankVault.getGlobalCount() [STATIC]',
+            variables: [], // Pas de 'this' !
+            operandStack: ['result: 1']
+          }
+        ],
+        heapObjects: [
+          { id: 'meta-vault', address: '@Metaspace:Class<BankVault>', className: 'java.lang.Class (Metaspace)', fields: { static_globalVaultCount: '1' }, isGarbage: false },
+          { id: 'vault-1', address: '@0xVAULT1', className: 'BankVault', fields: { goldBalance: '500.0', securityCode: '"SEC-99"' }, isGarbage: false }
+        ],
+        stdout: ['[invokestatic] Resolved directly at compile time. Returned 1.']
+      }
+    ],
+    jvmMemoryNotes: {
+      fr: "Les champs static vivent aussi longtemps que leur ClassLoader n'est pas déchargé. En pratique, dans une application standard, ils ne sont JAMAIS collectés par le GC, ce qui peut provoquer des fuites de mémoire (ex: cache statique qui grossit indéfiniment).",
+      en: "Static fields live as long as their ClassLoader remains loaded. They survive generational GC cycles unless the entire classloader is unloaded."
+    },
+    commonPitfalls: {
+      fr: [
+        "Confondre 'static' avec 'constant': un champ 'static' est modifiable par tous les threads sauf s'il est combiné avec 'final' ('public static final'). Sans 'final', attention aux data races !",
+        "Appeler une méthode statique via une variable d'instance (ex: 'vault.getGlobalCount()'). Le compilateur remplace la variable par la classe sans évaluer la nullité de la variable, masquant les bugs.",
+        "Accéder à un champ private par réflexion (setAccessible(true)) : depuis Java 9+, le système de modules Jigsaw bloque ces accès illégaux sauf ouverture explicite avec 'opens'."
+      ],
+      en: [
+        "Confusing 'static' with 'constant': static fields are mutable across threads unless marked 'final'.",
+        "Invoking static methods on an instance variable (e.g. vault.getGlobalCount()), which obfuscates static binding.",
+        "Reflective private access (setAccessible): strictly encapsulated in Java 9+ JPMS modules unless explicitly opened."
+      ]
+    },
+    quiz: {
+      id: 'q-13',
+      question: {
+        fr: "Pourquoi le mot-clé 'this' est-il strictement interdit à l'intérieur d'une méthode 'static' en Java ?",
+        en: "Why is the keyword 'this' strictly forbidden inside a 'static' method in Java?"
+      },
+      options: {
+        fr: [
+          "Parce que les méthodes statiques sont privées.",
+          "Parce que 'invokestatic' n'associe aucune instance d'objet : la variable locale Slot 0 ne contient pas de référence 'this'.",
+          "Parce que le Garbage Collector interdit l'usage de 'this' dans le Metaspace.",
+          "Parce que 'this' est réservé uniquement aux constructeurs."
+        ],
+        en: [
+          "Because static methods are private.",
+          "Because 'invokestatic' binds to the class, not an object: Local Variable Slot 0 does not hold a 'this' pointer.",
+          "Because Garbage Collector disallows 'this' in Metaspace.",
+          "Because 'this' is only valid in constructors."
+        ]
+      },
+      correctIndex: 1,
+      explanation: {
+        fr: "Exactement ! Lors d'un 'invokestatic', la JVM n'empile aucune référence d'objet. Le slot 0 des variables locales contient directement le premier paramètre de la méthode au lieu de la référence 'this'.",
+        en: "Spot on! When calling 'invokestatic', no object reference is pushed onto the frame. Slot 0 holds the first actual argument rather than 'this'."
+      }
+    }
+  },
+  {
+    id: 'ch-14',
+    title: {
+      fr: '14. Records, Modèle de Domaine Anémique vs Riche & Enums',
+      en: '14. Records, Anemic Domain Model vs Rich Domain & Enums'
+    },
+    subtitle: {
+      fr: 'Immutabilité Java 16+, anti-pattern de Martin Fowler, et types énumérés de première classe',
+      en: 'Java 16+ immutability, Martin Fowler anti-pattern, and first-class OOP Enums'
+    },
+    category: 'OOP',
+    estimatedTime: '25 min',
+    iconName: 'Box',
+    summary: {
+      fr: "Les 'records' (Java 16) éliminent le boilerplate en créant des transporteurs de données immuables et transparents. En architecture logicielle, ils s'opposent à l'anti-pattern du 'Modèle de Domaine Anémique' (objets réduits à de simples sacs de getters/setters manipulés par des services procéduraux), au profit d'un Modèle Riche encapsulant ses invariants. Enfin, les 'enums' Java ne sont pas de simples entiers comme en C, mais des classes complètes à part entière capables d'état, de comportement et de servir de Singleton parfait.",
+      en: "Java 16 records eliminate boilerplate by providing shallowly immutable transparent data carriers. In domain modeling, they contrast with Martin Fowler's Anemic Domain Model anti-pattern (passive data bags with getters/setters driven by procedural services), favoring Rich Aggregates that protect invariants. Meanwhile, Java enums are full-blown classes with state, methods, and perfect thread-safe singleton semantics."
+    },
+    codeSnippet: `// 1. Record immuable avec Constructeur Compact (Java 16+)
+public record Money(double amount, Currency currency) {
+    public Money {
+        if (amount < 0) throw new IllegalArgumentException("Amount >= 0");
+        if (currency == null) throw new NullPointerException("Currency required");
+    }
+}
+
+// 2. Enum Java avec comportement spécifique aux constantes
+public enum OrderStatus {
+    PENDING {
+        public boolean canCancel() { return true; }
+    },
+    PAID {
+        public boolean canCancel() { return true; }
+    },
+    SHIPPED {
+        public boolean canCancel() { return false; } // Invariant protégé !
+    };
+    public abstract boolean canCancel();
+}
+
+// 3. Modèle de Domaine Riche (DDD) vs Anémique
+public class Order {
+    private OrderStatus status = OrderStatus.PENDING;
+    private final List<Money> items = new ArrayList<>();
+
+    public void cancel() {
+        if (!status.canCancel()) {
+            throw new IllegalStateException("Impossible d'annuler une commande expédiée !");
+        }
+        this.status = OrderStatus.PENDING;
+    }
+}`,
+    lineBreakdown: [
+      {
+        lineNumber: 2,
+        code: 'public record Money(double amount, Currency currency) {',
+        explanation: {
+          fr: "Déclaration d'un Record : javac génère automatiquement les champs private final, le constructeur canonique, les accesseurs amount() et currency(), equals(), hashCode() et toString().",
+          en: "Record declaration: compiler synthesizes private final fields, canonical constructor, accessors amount() and currency(), equals(), hashCode(), and toString()."
+        },
+        memoryHint: {
+          fr: "Alloué sur le Tas comme un objet immuable de 16 octets d'en-tête + 8B double + 8B référence = 32 octets.",
+          en: "Heap allocated immutable object: 16B header + 8B double + 8B reference = 32 bytes."
+        }
+      },
+      {
+        lineNumber: 3,
+        code: '    public Money {',
+        explanation: {
+          fr: "Constructeur Compact : il ne redéclare pas les paramètres (double amount, Currency currency). Il permet de valider ou normaliser les données avant que javac ne procède automatiquement à l'assignation des champs.",
+          en: "Compact Constructor: omits parameter list. Validates or normalizes invariants before compiler automatically assigns fields."
+        }
+      },
+      {
+        lineNumber: 10,
+        code: 'public enum OrderStatus {',
+        explanation: {
+          fr: "Contrairement au C où une enum n'est qu'un entier 32 bits, en Java, OrderStatus est une classe héritant de java.lang.Enum avec instances statiques uniques (Singletons JVM garantis).",
+          en: "Unlike C where enums are 32-bit ints, in Java OrderStatus is a class extending java.lang.Enum with guaranteed unique singleton instances."
+        }
+      },
+      {
+        lineNumber: 26,
+        code: '    public void cancel() {',
+        explanation: {
+          fr: "Modèle Riche : la méthode 'cancel()' protège les invariants du métier. Dans un modèle anémique, un simple setStatus() externe permettrait de corrompre l'état de l'objet sans aucune vérification.",
+          en: "Rich Model: 'cancel()' guards domain invariants. In an anemic model, an external setStatus() would allow state corruption without checks."
+        }
+      }
+    ],
+    bytecode: [
+      { offset: 0, opcode: 'aload_0', comment: { fr: 'Charge "this" pour constructeur Record', en: 'Load "this" for Record constructor' } },
+      { offset: 1, opcode: 'invokespecial #1 <java/lang/Record.<init>>', comment: { fr: 'Hérite obligatoirement de java.lang.Record', en: 'Super constructor call to java.lang.Record' } },
+      { offset: 4, opcode: 'dload_1', comment: { fr: 'Charge paramètre double amount', en: 'Load double amount parameter' } },
+      { offset: 5, opcode: 'putfield #2 <Money.amount>', comment: { fr: 'Écrit dans le champ private final amount', en: 'Write to private final amount field' } },
+      { offset: 8, opcode: 'invokedynamic #3 <makeConcatWithConstants>', comment: { fr: 'toString() résolu via Indy (ObjectMethods)', en: 'toString() generated via Indy ObjectMethods' } },
+      { offset: 11, opcode: 'getstatic #4 <OrderStatus.SHIPPED>', comment: { fr: 'Récupère la constante Singleton de l\'Enum', en: 'Fetch singleton Enum constant' } },
+      { offset: 14, opcode: 'invokevirtual #5 <OrderStatus.canCancel>', comment: { fr: 'Exécute la méthode polymorphe de la constante', en: 'Execute constant-specific method' } }
+    ],
+    cComparison: {
+      cCode: `// En C: Struct pure (données passives) et enum comme simple entier
+typedef enum {
+    STATUS_PENDING = 0,
+    STATUS_PAID = 1,
+    STATUS_SHIPPED = 2
+} OrderStatus; // Juste un int en mémoire !
+
+typedef struct {
+    double amount;
+    int currency_code;
+} Money; // Aucune méthode, aucun invariant garanti
+
+// Procédural / Anémique par nature en C :
+void cancel_order(OrderStatus *status) {
+    if (*status != STATUS_SHIPPED) {
+        *status = STATUS_PENDING;
+    }
+}`,
+      explanation: {
+        fr: "En C, toute structure est par définition 'anémique' : elle ne regroupe que des octets de données passifs, et des fonctions externes les manipulent. En Java, un modèle riche fusionne données et invariants. Les Enums Java sont de vrais objets dotés de méthodes au lieu de simples entiers C.",
+        en: "In C, structs are inherently 'anemic' (passive bytes manipulated by external functions). In Java, Rich Models bind state and business invariants. Java enums are heap objects with methods, not raw integers."
+      },
+      memoryDifference: {
+        fr: "C: Enum = 4 octets bruts (int). Java: Enum = objets distincts sur le Tas avec références statiques en Metaspace. Record = layout mémoire optimisé avec attribut de classe officiel.",
+        en: "C: Enum = 4-byte raw int. Java: Enum = heap objects with static pointers in Metaspace. Record = heap layout with official classfile metadata."
+      }
+    },
+    executionSteps: [
+      {
+        stepIndex: 0,
+        lineNumber: 2,
+        programCounter: 0,
+        description: {
+          fr: "Instanciation 'new Money(99.99, Currency.EUR)'. Le constructeur compact vérifie amount >= 0.",
+          en: "'new Money(99.99, Currency.EUR)'. Compact constructor asserts amount >= 0."
+        },
+        stackFrames: [
+          {
+            method: 'Money.<init>(amount=99.99, currency=Currency.EUR)',
+            variables: [
+              { name: 'this', type: 'Money', value: '@0xREC1', isRef: true },
+              { name: 'amount', type: 'double', value: '99.99' },
+              { name: 'currency', type: 'Currency', value: '@0xEUR', isRef: true }
+            ],
+            operandStack: []
+          }
+        ],
+        heapObjects: [
+          { id: 'rec-1', address: '@0xREC1', className: 'Money (Record)', fields: { amount: '99.99', currency: '@0xEUR' }, isGarbage: false }
+        ],
+        stdout: ['[Record] Money instance validated & frozen.']
+      },
+      {
+        stepIndex: 1,
+        lineNumber: 26,
+        programCounter: 8,
+        description: {
+          fr: "Appel de order.cancel() sur une commande SHIPPED. L'invariant bloque l'action et lève une exception.",
+          en: "order.cancel() invoked on SHIPPED order. Invariant check rejects and throws exception."
+        },
+        stackFrames: [
+          {
+            method: 'Order.cancel()',
+            variables: [
+              { name: 'this', type: 'Order', value: '@0xORD1', isRef: true }
+            ],
+            operandStack: ['OrderStatus.SHIPPED.canCancel() -> false']
+          }
+        ],
+        heapObjects: [
+          { id: 'ord-1', address: '@0xORD1', className: 'Order', fields: { status: 'OrderStatus.SHIPPED' }, isGarbage: false }
+        ],
+        stdout: ['[Rich Model] Invariant preserved: Shipped orders cannot be cancelled!']
+      }
+    ],
+    jvmMemoryNotes: {
+      fr: "L'attribut 'Record' dans le fichier .class permet à la JVM de savoir que tous les champs sont immuables. Le compilateur JIT HotSpot peut ainsi optimiser agressivement les lectures sans craindre d'invalidation de cache mémoire processeur (CPU cache lines).",
+      en: "The .class Record attribute informs the JVM of strict component immutability, enabling HotSpot JIT to optimize CPU cache reads safely."
+    },
+    commonPitfalls: {
+      fr: [
+        "Penser qu'un Record offre une immutabilité profonde (Deep Immutability) : si un composant est une List mutable, son contenu peut toujours être altéré ! Il faut effectuer une copie défensive dans le constructeur compact.",
+        "Confondre Record et Entité DDD : utiliser un Record pour un Aggregate Root ayant une identité et un cycle de vie oblige à le recréer à chaque mise à jour.",
+        "Ajouter des setters dans une Entité métier sans méthode de domaine : cela crée un Modèle Anémique où la logique métier fuit dans les contrôleurs ou services."
+      ],
+      en: [
+        "Assuming Records guarantee deep immutability: mutable collections in record components require defensive copying.",
+        "Using Records as DDD Aggregate Roots: forcing synthetic re-creation on every state change.",
+        "Scattering setters everywhere in domain entities: creates an Anemic Model with logic leaking into procedural services."
+      ]
+    },
+    quiz: {
+      id: 'q-14',
+      question: {
+        fr: "Quelle est la particularité fondamentale du constructeur compact (Compact Constructor) dans un Record Java ?",
+        en: "What is the key defining feature of a compact constructor in a Java Record?"
+      },
+      options: {
+        fr: [
+          "Il est toujours privé et inaccessible.",
+          "Il n'a pas de liste de paramètres explicite et permet de valider les données avant l'assignation automatique des champs.",
+          "Il permet de modifier les champs après la création de l'objet.",
+          "Il est exécuté uniquement lors de la désérialisation."
+        ],
+        en: [
+          "It is always private.",
+          "It omits the explicit parameter list and validates invariants prior to automatic field assignment.",
+          "It allows mutating fields after instance creation.",
+          "It only executes during deserialization."
+        ]
+      },
+      correctIndex: 1,
+      explanation: {
+        fr: "Exact ! Le constructeur compact 'public Point { ... }' élimine la répétition des arguments et permet de valider ou normaliser les valeurs avant que javac n'effectue automatiquement les assignations 'this.x = x'.",
+        en: "Spot on! The compact constructor 'public Point { ... }' omits parameter repetition, letting you validate invariants before javac automatically assigns fields."
+      }
+    }
   }
 ];
 

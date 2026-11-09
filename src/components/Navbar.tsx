@@ -1,7 +1,7 @@
 import React from 'react';
 import { useJavaStore } from '../store/useJavaStore';
 import { RouteType } from '../types';
-import { BookOpen, Cpu, PlayCircle, SplitSquareVertical, Terminal, Award, CheckSquare, Sparkles, Globe, Menu, X, Binary, History, Layers } from 'lucide-react';
+import { BookOpen, Cpu, PlayCircle, SplitSquareVertical, Terminal, Award, CheckSquare, Sparkles, Globe, Menu, X, Binary, History, Layers, Shield, Box } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
   const { currentRoute, setRoute, language, setLanguage } = useJavaStore();
@@ -10,12 +10,13 @@ export const Navbar: React.FC = () => {
   const navItems: Array<{ id: RouteType; label: { fr: string; en: string }; icon: React.ReactNode }> = [
     { id: 'chapters', label: { fr: 'Curriculum', en: 'Curriculum' }, icon: <BookOpen className="w-4 h-4" /> },
     { id: 'stepper', label: { fr: 'Pas-à-Pas', en: 'Step Debugger' }, icon: <PlayCircle className="w-4 h-4" /> },
-    { id: 'vtable', label: { fr: 'VTable & Polymorphisme', en: 'VTable Dispatch' }, icon: <Layers className="w-4 h-4" /> },
-    { id: 'bytecode', label: { fr: 'Modifier Bytecode', en: 'Bytecode Studio' }, icon: <Binary className="w-4 h-4" /> },
-    { id: 'history', label: { fr: 'Versions & Histoire', en: 'Releases & History' }, icon: <History className="w-4 h-4" /> },
+    { id: 'modifiers', label: { fr: 'Static & Visibilité', en: 'Modifiers & Memory' }, icon: <Shield className="w-4 h-4" /> },
+    { id: 'domain', label: { fr: 'Record, DDD & Enum', en: 'Record, DDD & Enum' }, icon: <Box className="w-4 h-4" /> },
+    { id: 'vtable', label: { fr: 'VTable & Dispatch', en: 'VTable Dispatch' }, icon: <Layers className="w-4 h-4" /> },
+    { id: 'bytecode', label: { fr: 'Bytecode', en: 'Bytecode Studio' }, icon: <Binary className="w-4 h-4" /> },
+    { id: 'history', label: { fr: 'Histoire & Versions', en: 'Releases & History' }, icon: <History className="w-4 h-4" /> },
     { id: 'visualizer', label: { fr: 'Mémoire JVM', en: 'JVM Memory' }, icon: <Cpu className="w-4 h-4" /> },
     { id: 'cvsjava', label: { fr: 'C vs Java', en: 'C vs Java' }, icon: <SplitSquareVertical className="w-4 h-4" /> },
-    { id: 'playground', label: { fr: 'Labo IA', en: 'AI Lab' }, icon: <Terminal className="w-4 h-4" /> },
     { id: 'quizzes', label: { fr: 'Quiz', en: 'Quizzes' }, icon: <Award className="w-4 h-4" /> },
     { id: 'tests', label: { fr: 'Tests', en: 'Test Suite' }, icon: <CheckSquare className="w-4 h-4" /> }
   ];

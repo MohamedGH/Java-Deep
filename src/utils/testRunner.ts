@@ -430,5 +430,309 @@ export const runAllFunctionalTests = (): TestResult[] => {
     }
   );
 
+  // 12. Modifiers: Static vs Instance Memory Footprint
+  runTest(
+    't-modifiers-1',
+    'Static vs Instance Field Memory Footprint Model',
+    'Validates that static fields occupy exactly 1 memory slot in Metaspace/Class mirror, while instance fields scale linearly with N objects + 16-byte object headers',
+    'Memory',
+    () => {
+      // Memory calculator function
+      const calculateMemory = (fieldSize: number, instanceCount: number) => {
+        const objectHeaderSize = 16; // 12-byte Mark/Klass word + 4-byte padding on 64-bit JVM with compressed oops
+        const metaspaceStaticBytes = fieldSize; // Stored ONCE in java.lang.Class mirror
+        const heapInstanceBytes = (objectHeaderSize + fieldSize) * instanceCount;
+        return { metaspaceStaticBytes, heapInstanceBytes, total: metaspaceStaticBytes + heapInstanceBytes };
+      };
+
+      const m1 = calculateMemory(4, 1);     // 1 int field (4 bytes), 1 instance -> 4 static, 20 heap
+      const m100 = calculateMemory(4, 100); // 1 int field, 100 instances -> 4 static, 2000 heap
+      const m1000 = calculateMemory(4, 1000); // 1000 instances -> 4 static, 20000 heap
+
+      const passed =
+        m1.metaspaceStaticBytes === 4 &&
+        m100.metaspaceStaticBytes === 4 &&
+        m1000.metaspaceStaticBytes === 4 &&
+        m100.heapInstanceBytes === 2000 &&
+        m1000.heapInstanceBytes === 20000;
+
+      return {
+        passed,
+        assertion: `Static memory stays constant (4 B) across 1k instances; Heap instance scales from 20 B to 20,000 B.`
+      };
+    }
+  );
+
+  // 13. Modifiers: Bytecode Opcodes & Frame Slot 0 ("this") Rules
+  runTest(
+    't-modifiers-2',
+    'Modifier Bytecode Opcode & Frame Slot 0 Resolution',
+    'Verifies static methods omit "this" in Local Variable Slot 0 and use invokestatic, while private uses invokespecial and public uses invokevirtual',
+    'JVM Engine',
+    () => {
+      type MethodType = 'static' | 'private' | 'protected' | 'public';
+      interface MethodCallRule {
+        opcode: 'invokestatic' | 'invokespecial' | 'invokevirtual';
+        slot0IsThis: boolean;
+        usesVTable: boolean;
+      }
+
+      const resolveDispatch = (type: MethodType): MethodCallRule => {
+        switch (type) {
+          case 'static':
+            return { opcode: 'invokestatic', slot0IsThis: false, usesVTable: false };
+          case 'private':
+            return { opcode: 'invokespecial', slot0IsThis: true, usesVTable: false };
+          case 'protected':
+          case 'public':
+            return { opcode: 'invokevirtual', slot0IsThis: true, usesVTable: true };
+        }
+      };
+
+      const staticRule = resolveDispatch('static');
+      const privateRule = resolveDispatch('private');
+      const protectedRule = resolveDispatch('protected');
+      const publicRule = resolveDispatch('public');
+
+      const passed =
+        staticRule.opcode === 'invokestatic' &&
+        !staticRule.slot0IsThis &&
+        !staticRule.usesVTable &&
+        privateRule.opcode === 'invokespecial' &&
+        privateRule.slot0IsThis &&
+        !privateRule.usesVTable &&
+        publicRule.opcode === 'invokevirtual' &&
+        publicRule.usesVTable &&
+        protectedRule.opcode === 'invokevirtual';
+
+      return {
+        passed,
+        assertion: `Static uses invokestatic (no this), private uses invokespecial (direct non-virtual), public/protected use invokevirtual (vtable).`
+      };
+    }
+  );
+
+  // 14. Access Flags Bitmask & JVM Bytecode Verifier
+  runTest(
+    't-modifiers-3',
+    'ClassFile access_flags Bitwise Bitmask & Verifier',
+    'Validates 16-bit access_flags composition (ACC_PUBLIC=0x0001, ACC_PRIVATE=0x0002, ACC_PROTECTED=0x0004, ACC_STATIC=0x0008) and access violation checking',
+    'Functional',
+    () => {
+      const ACC_PUBLIC = 0x0001;
+      const ACC_PRIVATE = 0x0002;
+      const ACC_PROTECTED = 0x0004;
+      const ACC_STATIC = 0x0008;
+
+      // Bitmask combination
+      const publicStaticFlags = ACC_PUBLIC | ACC_STATIC; // 0x0009
+      const privateStaticFlags = ACC_PRIVATE | ACC_STATIC; // 0x000A
+
+      const isPublic = (flags: number) => (flags & ACC_PUBLIC) !== 0;
+      const isPrivate = (flags: number) => (flags & ACC_PRIVATE) !== 0;
+      const isStatic = (flags: number) => (flags & ACC_STATIC) !== 0;
+
+      // Access verification logic: caller in different class trying to access private member throws IllegalAccessError
+      const checkAccess = (flags: number, callerPackage: string, targetPackage: string, isSameClass: boolean): boolean => {
+        if (isPrivate(flags)) return isSameClass;
+        if (isPublic(flags)) return true;
+        // package-private / default
+        return callerPackage === targetPackage;
+      };
+
+      const canAccessOwnPrivate = checkAccess(privateStaticFlags, 'com.app', 'com.app', true);
+      const canAccessForeignPrivate = checkAccess(privateStaticFlags, 'com.app', 'com.app', false);
+      const canAccessForeignPublic = checkAccess(publicStaticFlags, 'com.other', 'com.app', false);
+
+      const passed =
+        publicStaticFlags === 0x0009 &&
+        privateStaticFlags === 0x000A &&
+        isStatic(publicStaticFlags) &&
+        isPublic(publicStaticFlags) &&
+        canAccessOwnPrivate &&
+        !canAccessForeignPrivate &&
+        canAccessForeignPublic;
+
+      return {
+        passed,
+        assertion: `Bitmask ACC_PUBLIC|ACC_STATIC = 0x0009. Access verifier correctly rejects unauthorized access to private members.`
+      };
+    }
+  );
+
+  // 15. Java Record: Immutability, Compact Constructor & Value-based Equality
+  runTest(
+    't-record-1',
+    'Java Record Immutability, Canonical Accessors & Compact Constructor',
+    'Validates that records produce value-based equals/hashCode, accessors use componentName() syntax (not getX), and compact constructor validates & normalizes invariants',
+    'Functional',
+    () => {
+      interface RecordContract<T> {
+        equals: (other: T) => boolean;
+        hashCode: () => number;
+        toString: () => string;
+      }
+
+      // Simulation of a Java 16+ Record with Compact Constructor
+      class TransferRecord implements RecordContract<TransferRecord> {
+        readonly iban: string;
+        readonly amount: number;
+
+        constructor(rawIban: string, rawAmount: number) {
+          // Compact constructor validation & normalization
+          if (!rawIban || rawIban.trim().length < 10) {
+            throw new Error('IllegalArgumentException: Invalid IBAN');
+          }
+          if (rawAmount <= 0) {
+            throw new Error('IllegalArgumentException: Amount must be > 0');
+          }
+          this.iban = rawIban.replace(/\s+/g, '').toUpperCase();
+          this.amount = rawAmount;
+        }
+
+        // Accessors: componentName(), NOT getIban()
+        ibanVal(): string { return this.iban; }
+        amountVal(): number { return this.amount; }
+
+        equals(other: TransferRecord): boolean {
+          if (!other) return false;
+          return this.iban === other.iban && this.amount === other.amount;
+        }
+
+        hashCode(): number {
+          return Array.from(this.iban).reduce((acc, c) => (acc * 31 + c.charCodeAt(0)) | 0, this.amount | 0);
+        }
+
+        toString(): string {
+          return `TransferRecord[iban=${this.iban}, amount=${this.amount}]`;
+        }
+      }
+
+      const r1 = new TransferRecord('fr 76 1234 5678', 500);
+      const r2 = new TransferRecord('FR7612345678', 500); // normalized in compact constructor
+      let rejected = false;
+      try {
+        new TransferRecord('FR1', -10);
+      } catch {
+        rejected = true;
+      }
+
+      const passed =
+        r1.iban === 'FR7612345678' &&
+        r1.equals(r2) &&
+        r1.hashCode() === r2.hashCode() &&
+        rejected;
+
+      return {
+        passed,
+        assertion: `Record value equality verified (r1 == r2: ${r1.equals(r2)}), compact constructor normalization & rejection passed.`
+      };
+    }
+  );
+
+  // 16. Anemic Domain Model vs Rich Model (DDD)
+  runTest(
+    't-anemic-1',
+    'Anemic Domain Model vs Rich Domain Model (DDD) Invariant Protection',
+    'Demonstrates how an anemic data bag allows corrupted state, whereas a Rich aggregate root guarantees domain invariants',
+    'State',
+    () => {
+      // 1. Anemic Model: setters without domain logic (leaks invariant)
+      class AnemicOrder {
+        status: 'PENDING' | 'PAID' | 'SHIPPED' | 'CANCELLED' = 'PENDING';
+        items: string[] = ['Book'];
+      }
+
+      // External service modifying anemic model inappropriately
+      const anemic = new AnemicOrder();
+      anemic.status = 'SHIPPED';
+      anemic.status = 'CANCELLED'; // Corrupted state! Shipped item was cancelled from the outside!
+      const anemicCorrupted = anemic.status === 'CANCELLED';
+
+      // 2. Rich Domain Model: state transitions strictly controlled by Aggregate Root
+      class RichOrder {
+        private _status: 'PENDING' | 'PAID' | 'SHIPPED' | 'CANCELLED' = 'PENDING';
+        private readonly _items: string[] = ['Book'];
+
+        get status() { return this._status; }
+        get items() { return [...this._items]; } // Defensive copy!
+
+        pay() {
+          if (this._status !== 'PENDING') throw new Error('Cannot pay non-pending order');
+          this._status = 'PAID';
+        }
+
+        ship() {
+          if (this._status !== 'PAID') throw new Error('Cannot ship unpaid order');
+          this._status = 'SHIPPED';
+        }
+
+        cancel() {
+          if (this._status === 'SHIPPED') throw new Error('Cannot cancel already shipped order');
+          this._status = 'CANCELLED';
+        }
+      }
+
+      const rich = new RichOrder();
+      rich.pay();
+      rich.ship();
+      let richPreventedIllegalCancel = false;
+      try {
+        rich.cancel(); // Must fail!
+      } catch {
+        richPreventedIllegalCancel = true;
+      }
+
+      const passed = anemicCorrupted && richPreventedIllegalCancel && rich.status === 'SHIPPED';
+
+      return {
+        passed,
+        assertion: `Anemic model corrupted via public setter; Rich model safely blocked illegal state transition (status=${rich.status}).`
+      };
+    }
+  );
+
+  // 17. Java Enum: Singleton, Constant-Specific Dispatch & values() Cloning
+  runTest(
+    't-enum-1',
+    'Java Enum JVM Singleton Guarantee & Constant-Specific Behavior',
+    'Validates enum singleton immutability, polymorphic constant-specific method execution, and values() defensive cloning',
+    'JVM Engine',
+    () => {
+      // Simulation of Java Enum with constant-specific class body
+      type OpFunc = (a: number, b: number) => number;
+      class JavaEnumConstant {
+        constructor(readonly name: string, readonly ordinal: number, readonly apply: OpFunc) {}
+      }
+
+      const PLUS = new JavaEnumConstant('PLUS', 0, (a, b) => a + b);
+      const MINUS = new JavaEnumConstant('MINUS', 1, (a, b) => a - b);
+      const MULTIPLY = new JavaEnumConstant('MULTIPLY', 2, (a, b) => a * b);
+
+      const internalValues = [PLUS, MINUS, MULTIPLY];
+      // values() creates defensive clone to prevent array tampering
+      const getValues = () => [...internalValues];
+
+      const vals1 = getValues();
+      vals1.pop(); // attempts tampering
+      const vals2 = getValues(); // original array unchanged
+
+      const plusRes = PLUS.apply(10, 5);
+      const mulRes = MULTIPLY.apply(10, 5);
+
+      const passed =
+        plusRes === 15 &&
+        mulRes === 50 &&
+        PLUS.ordinal === 0 &&
+        vals1.length === 2 &&
+        vals2.length === 3; // internal $VALUES safe
+
+      return {
+        passed,
+        assertion: `Enum constant-specific methods executed cleanly (PLUS=${plusRes}, MULTIPLY=${mulRes}), $VALUES array protected by defensive clone.`
+      };
+    }
+  );
+
   return results;
 };

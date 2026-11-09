@@ -13,6 +13,8 @@ import { PlaygroundView } from './components/PlaygroundView';
 import { QuizView } from './components/QuizView';
 import { TestSuiteView } from './components/TestSuiteView';
 import { ErrorToast } from './components/ErrorToast';
+import { ModifiersView } from './components/ModifiersView';
+import { DomainModelsView } from './components/DomainModelsView';
 import { MobileBottomNav } from './components/MobileBottomNav';
 
 export default function App() {
@@ -24,6 +26,10 @@ export default function App() {
         return <ChapterView />;
       case 'stepper':
         return <ExecutionStepperView />;
+      case 'modifiers':
+        return <ModifiersView />;
+      case 'domain':
+        return <DomainModelsView />;
       case 'vtable':
         return <VTableView />;
       case 'bytecode':
