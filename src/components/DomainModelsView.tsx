@@ -16,7 +16,11 @@ import {
   Sliders,
   Terminal,
   Activity,
-  Award
+  Award,
+  Cpu,
+  Lock,
+  Database,
+  GitBranch
 } from 'lucide-react';
 
 export const DomainModelsView: React.FC = () => {
@@ -28,6 +32,11 @@ export const DomainModelsView: React.FC = () => {
   const [recordIban, setRecordIban] = useState<string>('FR7630001007941234567890185');
   const [compactValidationResult, setCompactValidationResult] = useState<{ success: boolean; message: string } | null>(null);
 
+  // Record Pattern Matching Simulator state (Java 21 JEP 440)
+  const [selectedShape, setSelectedShape] = useState<'circle' | 'rectangle' | 'point'>('circle');
+  const [shapeParamA, setShapeParamA] = useState<number>(5);
+  const [shapeParamB, setShapeParamB] = useState<number>(10);
+
   // Anemic vs Rich Simulator state
   const [orderStatus, setOrderStatus] = useState<'PENDING' | 'PAID' | 'SHIPPED' | 'CANCELLED'>('PENDING');
   const [orderItemsCount, setOrderItemsCount] = useState<number>(2);
@@ -38,6 +47,21 @@ export const DomainModelsView: React.FC = () => {
   const [selectedEnumOp, setSelectedEnumOp] = useState<'PLUS' | 'MINUS' | 'MULTIPLY' | 'DIVIDE'>('PLUS');
   const [enumValA, setEnumValA] = useState<number>(12);
   const [enumValB, setEnumValB] = useState<number>(4);
+
+  // EnumSet Bitmask Simulator state (Hardware-accelerated bitmask)
+  const [enumSetBits, setEnumSetBits] = useState<{
+    READ: boolean;
+    WRITE: boolean;
+    EXECUTE: boolean;
+    ADMIN: boolean;
+    AUDIT: boolean;
+  }>({
+    READ: true,
+    WRITE: true,
+    EXECUTE: false,
+    ADMIN: false,
+    AUDIT: false
+  });
 
   // Test compact constructor on Record
   const handleValidateRecord = () => {
@@ -140,6 +164,51 @@ export const DomainModelsView: React.FC = () => {
       case 'MULTIPLY': return enumValA * enumValB;
       case 'DIVIDE': return enumValB !== 0 ? Math.round((enumValA / enumValB) * 100) / 100 : 'Division by zero!';
     }
+  };
+
+  // Record Pattern Matching resolution (Java 21 JEP 440)
+  const computePatternResult = () => {
+    switch (selectedShape) {
+      case 'circle': {
+        const area = Math.PI * shapeParamA * shapeParamA;
+        return {
+          deconstructed: `Circle(radius: ${shapeParamA})`,
+          result: `Aire = ${Math.round(area * 100) / 100} cm²`,
+          bytecodeInstruction: 'instanceof Circle(double r)'
+        };
+      }
+      case 'rectangle': {
+        const area = shapeParamA * shapeParamB;
+        return {
+          deconstructed: `Rectangle(width: ${shapeParamA}, height: ${shapeParamB})`,
+          result: `Aire = ${area} cm²`,
+          bytecodeInstruction: 'instanceof Rectangle(double w, double h)'
+        };
+      }
+      case 'point': {
+        const dist = Math.sqrt(shapeParamA * shapeParamA + shapeParamB * shapeParamB);
+        return {
+          deconstructed: `Point(x: ${shapeParamA}, y: ${shapeParamB})`,
+          result: `Distance à l'origine (0,0) = ${Math.round(dist * 100) / 100}`,
+          bytecodeInstruction: 'instanceof Point(int x, int y)'
+        };
+      }
+    }
+  };
+
+  // EnumSet Bitmask computation (Hardware-accelerated CPU register bitfield)
+  const computeEnumSetBitmask = () => {
+    let mask = 0;
+    if (enumSetBits.READ) mask |= (1 << 0);
+    if (enumSetBits.WRITE) mask |= (1 << 1);
+    if (enumSetBits.EXECUTE) mask |= (1 << 2);
+    if (enumSetBits.ADMIN) mask |= (1 << 3);
+    if (enumSetBits.AUDIT) mask |= (1 << 4);
+    return {
+      maskValue: mask,
+      binaryString: mask.toString(2).padStart(8, '0'),
+      activeCount: [enumSetBits.READ, enumSetBits.WRITE, enumSetBits.EXECUTE, enumSetBits.ADMIN, enumSetBits.AUDIT].filter(Boolean).length
+    };
   };
 
   return (
@@ -414,6 +483,175 @@ boolean eq = p.equals(p2); // true (valeur pure !)`}</pre>
                 <div className="font-mono text-indigo-400 font-bold mb-1">invokedynamic (Indy)</div>
                 <div className="text-slate-300">equals(), hashCode() et toString() sont résolus dynamiquement via le bootstrap <code className="text-amber-300">ObjectMethods.bootstrap</code> pour des performances JIT optimales.</div>
               </div>
+            </div>
+          </div>
+
+          {/* Record Pattern Matching & Deconstruction Lab (Java 21 JEP 440) */}
+          <div className="bg-slate-900/90 border border-indigo-900/30 rounded-2xl p-6 shadow-lg">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="p-2 rounded-xl bg-purple-500/20 text-purple-400">
+                <GitBranch className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center space-x-2">
+                  <h3 className="text-lg font-bold text-white">
+                    {language === 'fr' ? 'Pattern Matching & Déconstruction de Records (Java 21 JEP 440)' : 'Record Pattern Matching & Deconstruction (Java 21 JEP 440)'}
+                  </h3>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                    Java 21 LTS
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400">
+                  {language === 'fr'
+                    ? 'Décomposez un objet record et extrayez directement ses composants typés en une seule expression instanceof ou switch !'
+                    : 'Deconstruct a record instance and extract its typed components directly in a single instanceof or switch expression!'}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Controls */}
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-2">
+                    {language === 'fr' ? '1. Sélectionner le Record Shape :' : '1. Select Shape Record:'}
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(['circle', 'rectangle', 'point'] as const).map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => setSelectedShape(s)}
+                        className={`py-2 px-3 rounded-xl text-xs font-mono font-bold capitalize transition-all ${
+                          selectedShape === s
+                            ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30 border border-purple-400'
+                            : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
+                        }`}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      {selectedShape === 'circle' ? 'Rayon (r) :' : selectedShape === 'rectangle' ? 'Largeur (w) :' : 'Abscisse (x) :'}
+                    </label>
+                    <input
+                      type="number"
+                      value={shapeParamA}
+                      onChange={(e) => setShapeParamA(Number(e.target.value))}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-purple-500"
+                    />
+                  </div>
+                  {selectedShape !== 'circle' && (
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">
+                        {selectedShape === 'rectangle' ? 'Hauteur (h) :' : 'Ordonnée (y) :'}
+                      </label>
+                      <input
+                        type="number"
+                        value={shapeParamB}
+                        onChange={(e) => setShapeParamB(Number(e.target.value))}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-purple-500"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Live Deconstructed Output */}
+                <div className="p-4 rounded-xl bg-slate-950 border border-purple-900/40 text-xs font-mono space-y-2">
+                  <div className="text-purple-400 font-bold flex items-center space-x-1.5">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Déconstruction en mémoire :</span>
+                  </div>
+                  <div className="text-slate-200">
+                    Composants extraits : <span className="text-amber-300 font-bold">{computePatternResult().deconstructed}</span>
+                  </div>
+                  <div className="text-emerald-400 font-bold text-sm">
+                    {computePatternResult().result}
+                  </div>
+                </div>
+              </div>
+
+              {/* Code viewer */}
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 font-mono text-xs text-slate-300 overflow-x-auto">
+                <div className="text-purple-400 font-bold mb-2">// Switch Pattern Matching (JEP 440)</div>
+                <pre>{`// Déclaration des records
+public sealed interface Shape permits Circle, Rectangle, Point {}
+public record Circle(double radius) implements Shape {}
+public record Rectangle(double width, double height) implements Shape {}
+public record Point(int x, int y) implements Shape {}
+
+// Switch avec déconstruction directe des composants :
+public String describe(Shape shape) {
+    return switch (shape) {
+        case Circle(double r) -> 
+            "Cercle de rayon " + r + " (Aire = " + (Math.PI * r * r) + ")";
+        case Rectangle(double w, double h) when w == h -> 
+            "Carré parfait de côté " + w;
+        case Rectangle(double w, double h) -> 
+            "Rectangle " + w + "x" + h + " (Aire = " + (w * h) + ")";
+        case Point(int x, int y) -> 
+            "Point aux coordonnées (" + x + ", " + y + ")";
+    };
+}`}</pre>
+              </div>
+            </div>
+          </div>
+
+          {/* Masterclass: Serialization Security & CVE Immunity */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6">
+              <div className="flex items-center space-x-2 text-rose-400 mb-2">
+                <AlertTriangle className="w-5 h-5 shrink-0" />
+                <h4 className="font-bold text-white">Pourquoi la sérialisation classique est vulnérable (CVEs)</h4>
+              </div>
+              <p className="text-xs text-slate-400 leading-relaxed mb-3">
+                {language === 'fr'
+                  ? 'En Java classique, la désérialisation d\'un objet (Serializable) n\'appelle AUCUN constructeur ! Elle alloue un bloc mémoire brut et injecte directement les champs par réflexion (ou via le mécanisme interne de sun.misc.Unsafe). Des attaquants peuvent ainsi fabriquer des flux binaires corrompus qui contournent toutes les validations de vos constructeurs, menant aux fameuses attaques par Gadget Chains (ex: failles Log4Shell, Apache Commons Collections).'
+                  : 'In classic Java, deserialization invokes NO constructor! It allocates raw heap memory and writes fields reflectively, bypassing all validations and enabling malicious gadget chain exploits.'}
+              </p>
+            </div>
+
+            <div className="bg-slate-900/90 border border-indigo-900/40 rounded-2xl p-6">
+              <div className="flex items-center space-x-2 text-emerald-400 mb-2">
+                <ShieldCheck className="w-5 h-5 shrink-0" />
+                <h4 className="font-bold text-white">L'Immunité Native des Records en Désérialisation</h4>
+              </div>
+              <p className="text-xs text-slate-400 leading-relaxed mb-3">
+                {language === 'fr'
+                  ? 'La spécification JVM de Java 16 impose une règle stricte : un Record DÉSÉRIALISÉ DOIT OBLIGATOIREMENT passer par son Constructeur Canonique ! Aucun champ ne peut être écrit par Unsafe. Si un attaquant injecte un montant négatif ou un IBAN malformé, le constructeur compact lève une exception et interrompt immédiatement l\'attaque. Les Records sont sécurisés par conception (*Secure by Design*).'
+                  : 'The Java 16 JVM specification mandates that Records MUST be deserialized through their Canonical Constructor! Unsafe field injection is forbidden. Any malicious payload triggers validation exceptions immediately.'}
+              </p>
+            </div>
+          </div>
+
+          {/* Local Records in Stream Pipelines */}
+          <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6">
+            <h4 className="text-base font-bold text-white mb-2 flex items-center space-x-2">
+              <Code2 className="w-4 h-4 text-indigo-400" />
+              <span>{language === 'fr' ? 'Records Locaux dans les Méthodes & Streams' : 'Local Records in Methods & Streams'}</span>
+            </h4>
+            <p className="text-xs text-slate-400 mb-3">
+              {language === 'fr'
+                ? 'Besoin d\'un type intermédiaire pour regrouper des données dans une pipeline Stream ? Fini les Map.Entry ou les tableaux Object[] ! Vous pouvez déclarer un record directement à l\'intérieur d\'une méthode :'
+                : 'Need an intermediate tuple in a stream pipeline? No more untyped Object[] or Pair hacks! Declare records locally inside methods:'}
+            </p>
+            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 font-mono text-xs text-slate-300 overflow-x-auto">
+              <pre>{`public List<CustomerTotal> getTopSpenders(List<Order> orders) {
+    // Record local déclaré DANS la méthode : invisible hors de celle-ci
+    record CustomerSpend(String customerId, double total) {}
+
+    return orders.stream()
+        .collect(Collectors.groupingBy(Order::customerId, Collectors.summingDouble(Order::amount)))
+        .entrySet().stream()
+        .map(e -> new CustomerSpend(e.getKey(), e.getValue())) // Fortement typé !
+        .filter(cs -> cs.total() > 1000.0)
+        .map(cs -> new CustomerTotal(cs.customerId(), cs.total()))
+        .toList();
+}`}</pre>
             </div>
           </div>
         </div>
