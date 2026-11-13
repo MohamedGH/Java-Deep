@@ -1,4 +1,14 @@
 import { TestResult } from '../types';
+import {
+  simulateMavenLifecycle,
+  resolveDependencyConflict,
+  evaluateGradleDag
+} from './buildEngine';
+import {
+  resolveSpringIocGraph,
+  calculateBeanScopeMemory,
+  simulateSpringAopCall
+} from './springEngine';
 
 /**
  * Pure functional unit test runner that validates every single implemented feature
@@ -730,6 +740,225 @@ export const runAllFunctionalTests = (): TestResult[] => {
       return {
         passed,
         assertion: `Enum constant-specific methods executed cleanly (PLUS=${plusRes}, MULTIPLY=${mulRes}), $VALUES array protected by defensive clone.`
+      };
+    }
+  );
+
+  // 18. Java 21 Record Pattern Matching & EnumSet 64-bit Hardware Bitmask
+  runTest(
+    't-pattern-1',
+    'Record Pattern Matching & EnumSet 64-bit Hardware Bitmask',
+    'Verifies JEP 440 structural deconstruction with guard clauses and RegularEnumSet bitwise shift bitmask packing',
+    'Functional',
+    () => {
+      type Shape =
+        | { kind: 'Circle'; radius: number }
+        | { kind: 'Rectangle'; width: number; height: number };
+
+      const matchShape = (shape: Shape): string => {
+        if (shape.kind === 'Circle') {
+          return `Circle(${shape.radius})`;
+        }
+        if (shape.width === shape.height) {
+          return `Square(${shape.width})`;
+        }
+        return `Rect(${shape.width}x${shape.height})`;
+      };
+
+      // RegularEnumSet bitwise packing (1 << ordinal)
+      const ordinalRead = 0;
+      const ordinalWrite = 1;
+      const ordinalAdmin = 3;
+      const mask = (1 << ordinalRead) | (1 << ordinalWrite) | (1 << ordinalAdmin); // 0b1011 = 11
+      const hasWrite = (mask & (1 << ordinalWrite)) !== 0;
+      const hasExecute = (mask & (1 << 2)) !== 0;
+
+      const passed =
+        matchShape({ kind: 'Rectangle', width: 5, height: 5 }) === 'Square(5)' &&
+        matchShape({ kind: 'Circle', radius: 3 }) === 'Circle(3)' &&
+        mask === 11 &&
+        hasWrite &&
+        !hasExecute;
+
+      return {
+        passed,
+        assertion: `Pattern match resolved Square(5) & Circle(3); EnumSet bitmask = 0x${mask.toString(16)} (${mask}).`
+      };
+    }
+  );
+
+  // 19. Build Tools: Maven Default Lifecycle & Short-Circuiting
+  runTest(
+    't-build-1',
+    'Maven Lifecycle Phase Ordering & Failure Short-Circuiting',
+    'Verifies calling mvn package executes validate -> compile -> test -> package, and short-circuits subsequent phases on test failure',
+    'Functional',
+    () => {
+      const okRun = simulateMavenLifecycle('package', null);
+      const failRun = simulateMavenLifecycle('install', 'test');
+
+      const packageStepAfterFail = failRun.steps.find((s) => s.phase === 'package');
+      const installStepAfterFail = failRun.steps.find((s) => s.phase === 'install');
+
+      const passed =
+        okRun.buildSuccess &&
+        okRun.steps.length === 4 &&
+        okRun.steps[3].phase === 'package' &&
+        !failRun.buildSuccess &&
+        failRun.failedPhase === 'test' &&
+        packageStepAfterFail?.status === 'SKIPPED' &&
+        installStepAfterFail?.status === 'SKIPPED';
+
+      return {
+        passed,
+        assertion: `Maven lifecycle verified: mvn package ran ${okRun.steps.length} phases; failure at 'test' safely skipped package & install.`
+      };
+    }
+  );
+
+  // 20. Build Tools: Transitive Dependency Mediation (Maven Nearest-Wins vs Gradle Highest-Wins)
+  runTest(
+    't-build-2',
+    'Dependency Conflict Mediation: Maven Nearest-Wins vs Gradle Highest-Wins',
+    'Validates BFS depth selection in Maven vs maximum semantic version selection in Gradle on diamond dependency trees',
+    'Functional',
+    () => {
+      const diamondGraph = [
+        { artifact: 'guava', version: '28.0.0', depth: 2, path: 'App -> legacy -> guava:28' },
+        { artifact: 'guava', version: '32.1.3', depth: 3, path: 'App -> web -> http -> guava:32' },
+        { artifact: 'guava', version: '31.1.0', depth: 3, path: 'App -> metrics -> exp -> guava:31' }
+      ];
+
+      const mavenChoice = resolveDependencyConflict(diamondGraph, 'maven');
+      const gradleChoice = resolveDependencyConflict(diamondGraph, 'gradle');
+
+      const passed =
+        mavenChoice?.version === '28.0.0' &&
+        gradleChoice?.version === '32.1.3';
+
+      return {
+        passed,
+        assertion: `Conflict mediation validated: Maven picked ${mavenChoice?.version} (depth 2), Gradle picked ${gradleChoice?.version} (highest semver).`
+      };
+    }
+  );
+
+  // 21. Build Tools: Gradle Incremental Task DAG & UP-TO-DATE Caching
+  runTest(
+    't-build-3',
+    'Gradle Incremental Task DAG & Build Cache Classification',
+    'Verifies UP-TO-DATE task skipping when inputs are unchanged and FROM-CACHE restoration when build cache is enabled',
+    'JVM Engine',
+    () => {
+      const cleanWarmBuild = evaluateGradleDag({
+        srcModified: false,
+        testModified: false,
+        resourcesModified: false,
+        buildCacheEnabled: true,
+        configCacheEnabled: true,
+        daemonWarm: true
+      });
+
+      const cachedCodeChange = evaluateGradleDag({
+        srcModified: true,
+        testModified: false,
+        resourcesModified: false,
+        buildCacheEnabled: true,
+        configCacheEnabled: true,
+        daemonWarm: true
+      });
+
+      const allUpToDate = cleanWarmBuild.tasks.every((t) => t.outcome === 'UP-TO-DATE');
+      const compileTaskCached = cachedCodeChange.tasks.find((t) => t.taskName === ':compileJava')?.outcome === 'FROM-CACHE';
+
+      const passed =
+        allUpToDate &&
+        cleanWarmBuild.totalMs < 150 &&
+        compileTaskCached;
+
+      return {
+        passed,
+        assertion: `Gradle DAG validated: clean build skipped all 6 tasks (${cleanWarmBuild.totalMs} ms); cached compileJava hit FROM-CACHE.`
+      };
+    }
+  );
+
+  // 22. Spring IoC Topological Sort & Circular Dependency Detection
+  runTest(
+    't-spring-1',
+    'Spring IoC Container Topological Wiring & Cycle Rejection',
+    'Verifies ApplicationContext resolves constructor dependency graphs bottom-up and rejects cycles with BeanCurrentlyInCreationException',
+    'Functional',
+    () => {
+      const validGraph = resolveSpringIocGraph([
+        { name: 'Controller', stereotype: '@RestController', dependsOn: ['Service'] },
+        { name: 'Service', stereotype: '@Service', dependsOn: ['Repository'] },
+        { name: 'Repository', stereotype: '@Repository', dependsOn: [] }
+      ]);
+
+      const cyclicGraph = resolveSpringIocGraph([
+        { name: 'ServiceA', stereotype: '@Service', dependsOn: ['ServiceB'] },
+        { name: 'ServiceB', stereotype: '@Service', dependsOn: ['ServiceA'] }
+      ]);
+
+      const passed =
+        validGraph.success &&
+        validGraph.creationOrder.join(',') === 'Repository,Service,Controller' &&
+        !cyclicGraph.success &&
+        (cyclicGraph.error?.includes('BeanCurrentlyInCreationException') ?? false);
+
+      return {
+        passed,
+        assertion: `IoC order=${validGraph.creationOrder.join('->')}; cycle caught cleanly (${cyclicGraph.cyclePath?.join('<->')}).`
+      };
+    }
+  );
+
+  // 23. Spring Bean Scopes Memory Model & Destruction Semantics
+  runTest(
+    't-spring-2',
+    'Spring Bean Scope Heap Footprint & @PreDestroy Lifecycle',
+    'Validates singleton beans allocate exactly 1 instance across 1000 requests with @PreDestroy managed, while prototype allocates N instances without @PreDestroy',
+    'Memory',
+    () => {
+      const singleton = calculateBeanScopeMemory('singleton', 1000, 48);
+      const prototype = calculateBeanScopeMemory('prototype', 1000, 48);
+
+      const passed =
+        singleton.instancesAllocated === 1 &&
+        singleton.totalHeapBytes === 48 &&
+        singleton.preDestroyCalled &&
+        prototype.instancesAllocated === 1000 &&
+        prototype.totalHeapBytes === 48000 &&
+        !prototype.preDestroyCalled;
+
+      return {
+        passed,
+        assertion: `Singleton=48B fixed (@PreDestroy=true); Prototype=48,000B for 1k requests (@PreDestroy=false).`
+      };
+    }
+  );
+
+  // 24. Spring AOP CGLIB Proxy Interception vs Self-Invocation Trap
+  runTest(
+    't-spring-3',
+    'Spring AOP CGLIB Proxy vs Self-Invocation @Transactional Bypass',
+    'Verifies external proxy calls trigger TransactionInterceptor rollback on exception, while self-invocation bypasses CGLIB proxy completely',
+    'JVM Engine',
+    () => {
+      const externalRollback = simulateSpringAopCall('external_proxy', true);
+      const selfInvocation = simulateSpringAopCall('self_invocation', true);
+
+      const passed =
+        externalRollback.proxyIntercepted &&
+        externalRollback.transactionOpened &&
+        externalRollback.rollbackOnError &&
+        !selfInvocation.proxyIntercepted &&
+        !selfInvocation.transactionOpened;
+
+      return {
+        passed,
+        assertion: `External CGLIB proxy rolled back TX on RuntimeException; self-invocation bypassed proxy (transactionOpened=false).`
       };
     }
   );

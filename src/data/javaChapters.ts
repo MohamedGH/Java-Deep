@@ -2759,6 +2759,341 @@ void cancel_order(OrderStatus *status) {
         en: "Spot on! The compact constructor 'public Point { ... }' omits parameter repetition, letting you validate invariants before javac automatically assigns fields."
       }
     }
+  },
+  {
+    id: 'ch-15',
+    title: {
+      fr: '15. Outils de Build: Ant, Maven, Gradle, Bazel & Packaging JVM',
+      en: '15. Build Systems: Ant, Maven, Gradle, Bazel & JVM Packaging'
+    },
+    subtitle: {
+      fr: 'Du Makefile en C au POM déclaratif, Task DAG incrémental, résolution de conflits et jlink',
+      en: 'From C Makefiles to Declarative POM, Incremental Task DAGs, Conflict Mediation & jlink'
+    },
+    category: 'Advanced',
+    estimatedTime: '22 min',
+    iconName: 'Hammer',
+    summary: {
+      fr: "En C, 'make' orchestre gcc et ld via des commandes shell et des timestamps fichiers. En Java, l'écosystème a évolué vers Apache Ant (XML impératif multiplateforme), puis Apache Maven (convention sur configuration, cycle de vie standardisé et dépôt ~/.m2), puis Gradle (Task DAG incrémental avec cache SHA-256 et Kotlin DSL), jusqu'à Google Bazel, mvnd, JBang et les outils natifs du JDK (jlink et jpackage).",
+      en: "In C, 'make' invokes gcc/ld using OS shell scripts and timestamps. Java evolved from Apache Ant (imperative cross-platform XML) to Apache Maven (Convention over Configuration, fixed lifecycles, ~/.m2 cache) and Gradle (incremental Task DAG, SHA-256 build cache, Kotlin DSL), alongside Bazel, mvnd, JBang, and JDK jlink/jpackage."
+    },
+    codeSnippet: `// build.gradle.kts (Gradle Kotlin DSL moderne)
+plugins {
+    java
+    application
+}
+
+java {
+    toolchain.languageVersion.set(JavaLanguageVersion.of(21))
+}
+
+repositories { mavenCentral() }
+
+dependencies {
+    implementation("com.google.guava:guava:32.1.3-jre")
+    compileOnly("org.projectlombok:lombok:1.18.32")
+    runtimeOnly("org.postgresql:postgresql:42.7.3")
+    testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
+}`,
+    lineBreakdown: [
+      {
+        lineNumber: 8,
+        code: '    toolchain.languageVersion.set(JavaLanguageVersion.of(21))',
+        explanation: {
+          fr: "Java Toolchain : Gradle détecte ou télécharge automatiquement le JDK 21 exact requis pour compiler, garantissant des builds identiques sur toutes les machines.",
+          en: "Java Toolchain: Gradle discovers or auto-provisions the exact JDK 21 needed for reproducible builds."
+        }
+      },
+      {
+        lineNumber: 14,
+        code: '    implementation("com.google.guava:guava:32.1.3-jre")',
+        explanation: {
+          fr: "En Gradle, 'implementation' remplace l'ancien 'compile': la dépendance reste cachée aux consommateurs de votre bibliothèque (encapsulation de classpath), accélérant la recompilation incrémentale.",
+          en: "'implementation' encapsulates internal dependencies so downstream consumers don't recompile when internal APIs change."
+        }
+      },
+      {
+        lineNumber: 16,
+        code: '    runtimeOnly("org.postgresql:postgresql:42.7.3")',
+        explanation: {
+          fr: "Équivalent du scope 'runtime' de Maven : le pilote JDBC n'est pas visible durant javac (prévenant le couplage fort), mais est présent dans le classpath à l'exécution.",
+          en: "Equivalent to Maven 'runtime' scope: excluded at compile time, included at runtime."
+        }
+      }
+    ],
+    bytecode: [
+      { offset: 0, opcode: 'invokestatic #1 <Maven.validate>', comment: { fr: 'Maven: Vérification pom.xml & versions', en: 'Maven: Validate pom.xml & constraints' } },
+      { offset: 1, opcode: 'invokestatic #2 <Compiler.javac>', comment: { fr: 'Compile src/main/java -> target/classes (.class)', en: 'Compile .java -> .class bytecode' } },
+      { offset: 2, opcode: 'invokestatic #3 <Surefire.test>', comment: { fr: 'Exécute JUnit 5 (bloque package si échec)', en: 'Run JUnit 5 tests (aborts package on fail)' } },
+      { offset: 3, opcode: 'invokestatic #4 <JarPlugin.package>', comment: { fr: 'Assemble MANIFEST.MF + .class -> app.jar', en: 'Package MANIFEST.MF + .class -> app.jar' } }
+    ],
+    cComparison: {
+      cCode: `# En C : Makefile classique + gestion manuelle des bibliothèques système
+CC = gcc
+CFLAGS = -Wall -O2 -I/usr/include/postgresql
+LDFLAGS = -lpq
+
+all: server
+
+server: main.o db.o
+\t$(CC) main.o db.o -o server $(LDFLAGS)
+
+# Aucun téléchargement automatique de dépendances (.so/.a),
+# il faut apt-get, vcpkg ou Conan en plus du Makefile !`,
+      explanation: {
+        fr: "En C, Make ne télécharge pas de dépendances externes (il faut Conan, vcpkg ou apt-get) et génère des binaires spécifiques à un OS/CPU. En Java, Maven et Gradle téléchargent automatiquement les archives JAR depuis Maven Central, vérifient les sommes SHA, résolvent les conflits transitifs et empaquettent un JAR multiplateforme.",
+        en: "In C, Make doesn't fetch third-party libraries (requiring vcpkg/Conan) and compiles OS-specific binaries. Maven/Gradle resolve transitive JAR graphs from Maven Central automatically."
+      },
+      memoryDifference: {
+        fr: "C/Make : Editeur de liens statique/dynamique (.o -> ELF/.so). Java/Maven/Gradle : Résolution dynamique d'archives .jar sur le Classpath (ou Module-Path JPMS) chargées à la volée par le ClassLoader JVM.",
+        en: "C/Make: Linker binds .o into ELF/.so. Java: Build tools assemble Classpath/Module-Path JARs loaded dynamically by JVM ClassLoaders."
+      }
+    },
+    executionSteps: [
+      {
+        stepIndex: 0,
+        lineNumber: 2,
+        programCounter: 0,
+        description: {
+          fr: "Phase Configuration / Résolution : L'outil lit le graphe de dépendances (pom.xml ou build.gradle.kts) et vérifie le cache local (~/.m2 ou ~/.gradle/caches).",
+          en: "Configuration & Resolution: Reads dependency coordinates and checks local cache (~/.m2 or ~/.gradle/caches)."
+        },
+        stackFrames: [
+          { method: 'BuildEngine.resolveDependencies()', variables: [{ name: 'guava', type: 'Artifact', value: '32.1.3-jre' }], operandStack: [] }
+        ],
+        heapObjects: [
+          { id: 'cache-1', address: '@Disk:~/.gradle/caches', className: 'LocalArtifactCache', fields: { status: 'HIT (SHA-256 verified)' }, isGarbage: false }
+        ],
+        stdout: ['> Task :compileJava - Toolchain JDK 21 selected.']
+      },
+      {
+        stepIndex: 1,
+        lineNumber: 14,
+        programCounter: 1,
+        description: {
+          fr: "Compilation incrémentale : Seuls les fichiers .java modifiés (et leurs dépendants ABI) sont recompilés par javac en bytecode.",
+          en: "Incremental Compilation: Only modified .java files and ABI dependents are recompiled by javac."
+        },
+        stackFrames: [
+          { method: 'GradleWorker.compileJava()', variables: [{ name: 'cacheHit', type: 'boolean', value: 'true' }], operandStack: [] }
+        ],
+        heapObjects: [
+          { id: 'jar-1', address: '@Disk:build/libs/app.jar', className: 'ExecutableJAR', fields: { mainClass: 'com.javababel.Main', size: '42 KB' }, isGarbage: false }
+        ],
+        stdout: ['BUILD SUCCESSFUL in 412ms (4 tasks: 1 executed, 3 UP-TO-DATE)']
+      }
+    ],
+    jvmMemoryNotes: {
+      fr: "Pourquoi Gradle est-il souvent 2 à 10x plus rapide que Maven classique ? Parce que Gradle garde un processus JVM 'Daemon' chaud en RAM entre deux builds (JIT déjà compilé, caches de fichiers en mémoire), alors que 'mvn' lance une JVM à froid à chaque commande (problème désormais résolu par Maven Daemon 'mvnd').",
+      en: "Gradle runs a warm persistent JVM Daemon in RAM keeping JIT-compiled build code and VFS snapshots hot, whereas classic mvn cold-starts a JVM per command (now solved by mvnd)."
+    },
+    commonPitfalls: {
+      fr: [
+        "Confondre les stratégies de conflits transitifs : Maven applique 'Nearest Definition Wins' (profondeur d'arbre), tandis que Gradle applique 'Highest Version Wins' (version semver maximale).",
+        "Oublier d'utiliser les Wrappers (./mvnw ou ./gradlew) : sans Wrapper, chaque développeur ou serveur CI risque de compiler avec une version différente de Maven/Gradle.",
+        "Ajouter des fichiers JAR manuellement dans Git au lieu d'utiliser un dépôt Maven / BOM."
+      ],
+      en: [
+        "Confusing dependency conflict mediation: Maven uses Nearest-Wins BFS depth; Gradle picks Highest Semver Version.",
+        "Skipping ./mvnw or ./gradlew wrappers, causing 'works on my machine' build drift.",
+        "Committing binary .jar files directly into Git instead of using Maven Central / BOMs."
+      ]
+    },
+    quiz: {
+      id: 'q-15',
+      question: {
+        fr: "Si votre projet dépend directement de LibA (qui dépend de Guava 28) et de LibB -> LibC -> Guava 32, quelle version de Guava sera retenue par défaut par Apache Maven ?",
+        en: "If your project depends on LibA (-> Guava 28) and LibB -> LibC -> Guava 32, which Guava version does Apache Maven select by default?"
+      },
+      options: {
+        fr: [
+          "Guava 32 (car c'est la version la plus récente).",
+          "Guava 28 (car Maven utilise la règle 'Nearest Definition Wins' : profondeur 2 < profondeur 3).",
+          "Les deux versions sont chargées simultanément dans le Classpath.",
+          "Maven refuse de compiler avec une erreur fatale."
+        ],
+        en: [
+          "Guava 32 (highest semantic version).",
+          "Guava 28 (Maven uses 'Nearest Definition Wins': BFS depth 2 < depth 3).",
+          "Both versions are loaded simultaneously onto the Classpath.",
+          "Maven refuses to compile."
+        ]
+      },
+      correctIndex: 1,
+      explanation: {
+        fr: "Exact ! Contrairement à Gradle qui choisit la version la plus haute (32), Maven choisit la définition la plus proche de la racine du pom.xml (profondeur 2 pour Guava 28 contre 3 pour Guava 32).",
+        en: "Correct! Unlike Gradle (which picks highest version 32), Maven uses Nearest Definition Wins (depth 2 beats depth 3)."
+      }
+    }
+  },
+  {
+    id: 'ch-16',
+    title: {
+      fr: '16. Spring Framework & Boot: IoC, Proxies CGLIB, Scopes & AOT',
+      en: '16. Spring Framework & Boot: IoC, CGLIB Proxies, Scopes & AOT'
+    },
+    subtitle: {
+      fr: 'Sous le capot JVM d’ApplicationContext, @Transactional, Self-Invocation et GraalVM',
+      en: 'Under the JVM hood of ApplicationContext, @Transactional, Self-Invocation & GraalVM'
+    },
+    category: 'Advanced',
+    estimatedTime: '25 min',
+    iconName: 'Leaf',
+    summary: {
+      fr: "Spring n'est pas magique : son cœur repose sur un Conteneur d'Inversion de Contrôle (ApplicationContext) qui maintient un registre Singleton (ConcurrentHashMap), réalise un tri topologique pour l'injection par constructeur, génère des sous-classes bytecode CGLIB dynamiques dans le Metaspace pour la programmation orientée aspect (@Transactional, @Cacheable), et peut pré-calculer tout le graphe à la compilation via Spring 6 AOT pour GraalVM.",
+      en: "Spring isn't magic: its ApplicationContext maintains a ConcurrentHashMap singleton registry, runs topological constructor wiring, weaves dynamic CGLIB bytecode subclasses in Metaspace for AOP (@Transactional, @Cacheable), and can compile statically ahead-of-time via Spring 6 AOT for GraalVM."
+    },
+    codeSnippet: `@Service
+public class TransferService {
+    private final AccountRepository repo;
+
+    // Injection par constructeur recommandée (champs final & sans réflexion de champ)
+    public TransferService(AccountRepository repo) {
+        this.repo = repo;
+    }
+
+    @Transactional // Spring enveloppe ce Bean dans un proxy TransferService$$SpringCGLIB$$0 !
+    public void transfer(String fromId, String toId, double amount) {
+        repo.debit(fromId, amount);
+        repo.credit(toId, amount); // Si RuntimeException -> TransactionInterceptor rollback !
+    }
+}`,
+    lineBreakdown: [
+      {
+        lineNumber: 1,
+        code: '@Service',
+        explanation: {
+          fr: "Enregistré lors du @ComponentScan. Par défaut, Spring crée UNE SEULE instance (Singleton) stockée dans singletonObjects (ConcurrentHashMap) pour toute la JVM.",
+          en: "Discovered via @ComponentScan. By default, Spring creates ONE single instance stored in singletonObjects (ConcurrentHashMap)."
+        },
+        memoryHint: {
+          fr: "1 instance sur le Tas partagée par tous les threads HTTP -> le Bean doit être sans état (stateless) !",
+          en: "1 Heap instance shared across all HTTP threads -> Bean MUST remain stateless!"
+        }
+      },
+      {
+        lineNumber: 6,
+        code: '    public TransferService(AccountRepository repo) {',
+        explanation: {
+          fr: "L'injection par constructeur permet d'utiliser 'private final', garantit un objet complet à l'instanciation, et rejette immédiatement les cycles par BeanCurrentlyInCreationException.",
+          en: "Constructor injection enables 'private final', guarantees valid invariants at construction, and fails fast on circular dependencies."
+        }
+      },
+      {
+        lineNumber: 10,
+        code: '    @Transactional // Spring enveloppe ce Bean dans un proxy TransferService$$SpringCGLIB$$0 !',
+        explanation: {
+          fr: "Lors de l'étape BeanPostProcessor.postProcessAfterInitialization(), Spring détecte @Transactional et génère en bytecode une sous-classe CGLIB qui intercepte les appels via TransactionInterceptor.",
+          en: "During BeanPostProcessor.postProcessAfterInitialization(), Spring generates a runtime CGLIB subclass intercepting calls with TransactionInterceptor."
+        }
+      }
+    ],
+    bytecode: [
+      { offset: 0, opcode: 'new #1 <TransferService$$SpringCGLIB$$0>', comment: { fr: 'Spring génère et alloue le proxy CGLIB dans le Metaspace', en: 'Spring generates & allocates CGLIB proxy subclass' } },
+      { offset: 3, opcode: 'invokevirtual #2 <TransactionInterceptor.invoke>', comment: { fr: 'Ouvre la connexion JDBC & BEGIN TRANSACTION', en: 'Acquire JDBC connection & BEGIN TRANSACTION' } },
+      { offset: 6, opcode: 'invokespecial #3 <TransferService.transfer>', comment: { fr: 'Délègue au vrai POJO cible (target)', en: 'Delegate to actual target POJO' } },
+      { offset: 9, opcode: 'invokevirtual #4 <PlatformTransactionManager.commit>', comment: { fr: 'Commit SQL si OK, ou Rollback si RuntimeException', en: 'SQL Commit on return, Rollback on RuntimeException' } }
+    ],
+    cComparison: {
+      cCode: `// En C / Java pur : "Manual Composition Root" sans conteneur IoC
+int main(void) {
+    DatabasePool *pool = db_pool_init("postgres://...");
+    AccountRepo *repo = account_repo_create(pool);
+    TransferService *svc = transfer_service_create(repo);
+
+    // En C, pas d'annotations ni de proxies automatiques :
+    // Vous devez appeler BEGIN/COMMIT manuellement dans chaque fonction !
+    db_begin_tx(pool);
+    transfer(svc, "A", "B", 100.0);
+    db_commit_tx(pool);
+}`,
+      explanation: {
+        fr: "En C ou Java sans framework, vous assemblez vos dépendances à la main (Composition Root) et gérez manuellement transactions, sécurité et caches dans chaque fonction. Spring automatise l'assemblage (IoC) et déporte les préoccupations transversales (transactions, logs, sécurité) dans des proxies générés en bytecode.",
+        en: "In C or plain Java, dependencies are wired manually in a Composition Root and transactions are coded explicitly. Spring automates wiring via IoC and weaves cross-cutting concerns using bytecode proxies."
+      },
+      memoryDifference: {
+        fr: "C : Assemblage statique à la compilation (0 surcharge de proxy). Spring classique : Scanner ASM + métadonnées Reflection + classes CGLIB générées dans le Metaspace (éliminé en Spring 6 AOT + GraalVM).",
+        en: "C: Zero runtime reflection/proxy overhead. Classic Spring: ASM bytecode scanning + Reflection + CGLIB classes in Metaspace (eliminated by Spring 6 AOT)."
+      }
+    },
+    executionSteps: [
+      {
+        stepIndex: 0,
+        lineNumber: 6,
+        programCounter: 0,
+        description: {
+          fr: "Phase IoC Startup : ApplicationContext résout AccountRepository puis instancie TransferService via son constructeur.",
+          en: "IoC Startup: ApplicationContext resolves AccountRepository then instantiates TransferService via constructor."
+        },
+        stackFrames: [
+          { method: 'DefaultListableBeanFactory.createBean()', variables: [{ name: 'beanName', type: 'String', value: '"transferService"' }], operandStack: [] }
+        ],
+        heapObjects: [
+          { id: 'repo-1', address: '@0xREPO', className: 'AccountRepository', fields: { dataSource: '@0xHIKARI' }, isGarbage: false },
+          { id: 'svc-target', address: '@0xPOJO', className: 'TransferService (Target)', fields: { repo: '@0xREPO' }, isGarbage: false }
+        ],
+        stdout: ['[Spring IoC] Instantiated AccountRepository & TransferService target POJO.']
+      },
+      {
+        stepIndex: 1,
+        lineNumber: 10,
+        programCounter: 3,
+        description: {
+          fr: "AnnotationAwareAspectJAutoProxyCreator détecte @Transactional et enveloppe @0xPOJO dans un proxy CGLIB @0xPROXY stocké dans le registre Singleton !",
+          en: "BeanPostProcessor detects @Transactional and wraps @0xPOJO inside CGLIB proxy @0xPROXY registered as the Singleton Bean!"
+        },
+        stackFrames: [
+          { method: 'CglibAopProxy.getProxy()', variables: [{ name: 'target', type: 'TransferService', value: '@0xPOJO', isRef: true }], operandStack: [] }
+        ],
+        heapObjects: [
+          { id: 'svc-target', address: '@0xPOJO', className: 'TransferService (Target)', fields: { repo: '@0xREPO' }, isGarbage: false },
+          { id: 'svc-proxy', address: '@0xPROXY', className: 'TransferService$$SpringCGLIB$$0', fields: { targetSource: '@0xPOJO', interceptor: 'TransactionInterceptor' }, isGarbage: false }
+        ],
+        stdout: ['[Spring AOP] Wrapped TransferService in CGLIB Proxy @0xPROXY -> stored in singletonObjects.']
+      }
+    ],
+    jvmMemoryNotes: {
+      fr: "Attention : la classe générée 'TransferService$$SpringCGLIB$$0' occupe de la mémoire dans le Metaspace. De plus, lors d'un appel interne 'this.autreMethodeTransactional()', le pointeur 'this' désigne @0xPOJO et non @0xPROXY : l'aspect @Transactional est donc totalement ignoré (Self-Invocation Trap).",
+      en: "Generated CGLIB proxy classes reside in Metaspace. Calling 'this.otherMethod()' inside the target POJO hits @0xPOJO directly, bypassing @0xPROXY and skipping @Transactional!"
+    },
+    commonPitfalls: {
+      fr: [
+        "Le piège du Self-Invocation : appeler une méthode @Transactional / @Async de la même classe via 'this.' court-circuite le proxy CGLIB !",
+        "Mettre 'final' sur une classe ou méthode @Service @Transactional : CGLIB ne peut pas hériter d'une classe finale ni surcharger une méthode finale.",
+        "Stocker un champ mutable (ex: int userCounter) dans un Bean @Service singleton : provoque des Data Races entre requêtes HTTP concurrentes !"
+      ],
+      en: [
+        "Self-Invocation Trap: calling this.transactionalMethod() inside the same bean bypasses the Spring CGLIB proxy.",
+        "Marking @Transactional classes or methods 'final': CGLIB subclassing cannot override final methods.",
+        "Storing mutable state inside default @Service singletons: causes concurrency race conditions across HTTP requests."
+      ]
+    },
+    quiz: {
+      id: 'q-16',
+      question: {
+        fr: "Que se passe-t-il si une méthode publique non-transactionnelle d'un @Service appelle une autre méthode @Transactional de la MÊME classe via 'this.save()' ?",
+        en: "What happens when a non-transactional method in a @Service calls another @Transactional method in the SAME class via 'this.save()'?"
+      },
+      options: {
+        fr: [
+          "Spring ouvre automatiquement une nouvelle transaction imbriquée.",
+          "Aucune transaction n'est ouverte car 'this' pointe vers l'objet cible réel et court-circuite le proxy CGLIB.",
+          "La JVM lève une IllegalStateException au démarrage.",
+          "Le Garbage Collector supprime le Bean de la mémoire."
+        ],
+        en: [
+          "Spring automatically opens a nested transaction.",
+          "No transaction is opened because 'this' points directly to the target POJO, bypassing the CGLIB proxy.",
+          "JVM throws IllegalStateException at boot.",
+          "Garbage Collector deletes the Bean."
+        ]
+      },
+      correctIndex: 1,
+      explanation: {
+        fr: "Exact ! Seuls les appels entrants depuis l'extérieur passent par le proxy généré (TransferService$$SpringCGLIB$$0). Un appel interne via 'this' contourne complètement TransactionInterceptor !",
+        en: "Spot on! Only external calls pass through the generated proxy (TransferService$$SpringCGLIB$$0). Internal 'this.' calls bypass TransactionInterceptor!"
+      }
+    }
   }
 ];
 

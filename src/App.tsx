@@ -15,6 +15,8 @@ import { TestSuiteView } from './components/TestSuiteView';
 import { ErrorToast } from './components/ErrorToast';
 import { ModifiersView } from './components/ModifiersView';
 import { DomainModelsView } from './components/DomainModelsView';
+import { BuildToolsView } from './components/BuildToolsView';
+import { SpringView } from './components/SpringView';
 import { MobileBottomNav } from './components/MobileBottomNav';
 
 export default function App() {
@@ -30,6 +32,10 @@ export default function App() {
         return <ModifiersView />;
       case 'domain':
         return <DomainModelsView />;
+      case 'buildtools':
+        return <BuildToolsView />;
+      case 'spring':
+        return <SpringView />;
       case 'vtable':
         return <VTableView />;
       case 'bytecode':

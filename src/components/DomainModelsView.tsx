@@ -828,6 +828,47 @@ order.setStatus("CANCELLED"); // N'importe qui peut l'appeler !`}</pre>
               </div>
             </div>
           </div>
+
+          {/* Refactoring Guide: Anemic to Rich Architecture */}
+          <div className="bg-slate-900/90 border border-amber-900/30 rounded-2xl p-6">
+            <h4 className="text-base font-bold text-white mb-4 flex items-center space-x-2">
+              <Activity className="w-4 h-4 text-amber-400" />
+              <span>{language === 'fr' ? 'Comparatif Architecture & Mémoire : Anémique vs Riche' : 'Architecture & Memory Comparison: Anemic vs Rich'}</span>
+            </h4>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-800 text-slate-400 font-mono uppercase">
+                    <th className="py-2 pr-4">Critère</th>
+                    <th className="py-2 pr-4 text-rose-400">Modèle Anémique (Anti-Pattern)</th>
+                    <th className="py-2 text-emerald-400">Modèle Riche (DDD)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/70 text-slate-300">
+                  <tr>
+                    <td className="py-3 pr-4 font-semibold text-white">Encapsulation</td>
+                    <td className="py-3 pr-4">Champs exposés via setters publics (<code className="text-rose-300">setStatus()</code>). N'importe qui peut corrompre l'état.</td>
+                    <td className="py-3">Aucun setter public. Transitions via méthodes métier (<code className="text-emerald-300">pay(), ship()</code>).</td>
+                  </tr>
+                  <tr>
+                    <td className="py-3 pr-4 font-semibold text-white">Collections internes</td>
+                    <td className="py-3 pr-4"><code className="text-rose-300">getItems()</code> retourne la liste mutable directe (fuite de référence Tas).</td>
+                    <td className="py-3"><code className="text-emerald-300">Collections.unmodifiableList()</code> ou <code className="text-emerald-300">List.copyOf()</code>.</td>
+                  </tr>
+                  <tr>
+                    <td className="py-3 pr-4 font-semibold text-white">Logique métier</td>
+                    <td className="py-3 pr-4">Éparpillée dans des Services procéduraux géants (*God Services*).</td>
+                    <td className="py-3">Cohésive au sein de l'Aggregate Root ; Services limités à l'orchestration.</td>
+                  </tr>
+                  <tr>
+                    <td className="py-3 pr-4 font-semibold text-white">Testabilité unitaire</td>
+                    <td className="py-3 pr-4">Lourde : nécessite de mocker Repositories et Services pour tester une règle simple.</td>
+                    <td className="py-3">Instantanée : <code className="text-emerald-300">new Order().cancel()</code> sans Spring ni BDD.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
 
@@ -953,6 +994,81 @@ order.setStatus("CANCELLED"); // N'importe qui peut l'appeler !`}</pre>
             </div>
           </div>
 
+          {/* Interactive EnumSet Hardware Bitmask & EnumMap O(1) */}
+          <div className="bg-slate-900/90 border border-emerald-900/30 rounded-2xl p-6 shadow-lg">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="p-2 rounded-xl bg-cyan-500/20 text-cyan-400">
+                <Cpu className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-base font-bold text-white">
+                  {language === 'fr'
+                    ? 'Performance Matérielle : EnumSet (Bitmask 64 bits) & EnumMap O(1)'
+                    : 'Hardware-Speed Collections: EnumSet (64-bit Bitmask) & EnumMap O(1)'}
+                </h4>
+                <p className="text-xs text-slate-400">
+                  {language === 'fr'
+                    ? 'Contrairement au HashSet qui alloue des nœuds sur le Tas, EnumSet stocke tout dans un unique entier 64-bit (long elements) via des décalages binaires CPU (1 cycle processeur) !'
+                    : 'Unlike HashSet allocating heap nodes, EnumSet packs all flags into a single 64-bit CPU register (long elements) using bitwise shifts!'}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <div className="text-xs font-semibold text-slate-300">
+                  {language === 'fr' ? 'Activez / Désactivez les permissions dans EnumSet<Permission> :' : 'Toggle flags inside EnumSet<Permission>:'}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {(['READ', 'WRITE', 'EXECUTE', 'ADMIN', 'AUDIT'] as const).map((perm, idx) => {
+                    const active = enumSetBits[perm];
+                    return (
+                      <button
+                        key={perm}
+                        onClick={() => setEnumSetBits((prev) => ({ ...prev, [perm]: !prev[perm] }))}
+                        className={`px-3 py-2 rounded-xl text-xs font-mono font-bold transition-all border ${
+                          active
+                            ? 'bg-cyan-600/30 text-cyan-300 border-cyan-500 shadow-sm'
+                            : 'bg-slate-950 text-slate-500 border-slate-800 hover:text-slate-300'
+                        }`}
+                      >
+                        {perm} (bit {idx})
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="p-4 rounded-xl bg-slate-950 border border-cyan-900/40 font-mono text-xs space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Représentation <code className="text-cyan-400">RegularEnumSet.elements</code> (long):</span>
+                    <span className="text-amber-400 font-bold">0x{computeEnumSetBitmask().maskValue.toString(16).toUpperCase().padStart(2, '0')} ({computeEnumSetBitmask().maskValue})</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Registre Binaire (8 bits de poids faible):</span>
+                    <span className="text-emerald-400 font-bold tracking-widest">{computeEnumSetBitmask().binaryString}</span>
+                  </div>
+                  <div className="flex justify-between pt-2 border-t border-slate-800 text-[11px]">
+                    <span className="text-slate-400">Empreinte Tas : <strong className="text-emerald-400">24 octets fixes</strong> (vs ~250B HashSet)</span>
+                    <span className="text-cyan-300">Actifs : {computeEnumSetBitmask().activeCount}/5</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 font-mono text-xs text-slate-300 overflow-x-auto">
+                <div className="text-cyan-400 font-bold mb-2">// Sous le capot du JDK (java.util.RegularEnumSet & EnumMap)</div>
+                <pre>{`// 1. EnumSet : aussi rapide qu'un bitmask en C (1L << ordinal)
+EnumSet<Permission> perms = EnumSet.of(Permission.READ, Permission.WRITE);
+// En mémoire : elements |= (1L << e.ordinal()); -> 1 instruction CPU !
+
+// 2. EnumMap : Pas de hashCode(), pas de collisions !
+// Utilise un tableau Object[] indexé directement par e.ordinal() :
+Map<OrderStatus, String> labels = new EnumMap<>(OrderStatus.class);
+labels.put(OrderStatus.PAID, "Payée"); 
+// En interne : vals[key.ordinal()] = value; -> Vitesse O(1) pure !`}</pre>
+              </div>
+            </div>
+          </div>
+
           {/* Joshua Bloch Singleton via Enum */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6">
@@ -972,7 +1088,7 @@ order.setStatus("CANCELLED"); // N'importe qui peut l'appeler !`}</pre>
                 </li>
                 <li className="flex items-start space-x-2">
                   <CheckCircle2 className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />
-                  <span><strong>Immunisé contre la Sérialisation</strong> : La JVM interdit la création de nouveaux objets lors de la désérialisation d\'un enum (règles de la JVM Spec).</span>
+                  <span><strong>Immunisé contre la Sérialisation</strong> : La JVM interdit la création de nouveaux objets lors de la désérialisation d'un enum (règles de la JVM Spec).</span>
                 </li>
                 <li className="flex items-start space-x-2">
                   <CheckCircle2 className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />
