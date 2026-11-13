@@ -17,6 +17,7 @@ import { ModifiersView } from './components/ModifiersView';
 import { DomainModelsView } from './components/DomainModelsView';
 import { BuildToolsView } from './components/BuildToolsView';
 import { SpringView } from './components/SpringView';
+import { JUnitView } from './components/JUnitView';
 import { MobileBottomNav } from './components/MobileBottomNav';
 
 export default function App() {
@@ -36,6 +37,8 @@ export default function App() {
         return <BuildToolsView />;
       case 'spring':
         return <SpringView />;
+      case 'junit':
+        return <JUnitView />;
       case 'vtable':
         return <VTableView />;
       case 'bytecode':

@@ -3094,6 +3094,179 @@ int main(void) {
         en: "Spot on! Only external calls pass through the generated proxy (TransferService$$SpringCGLIB$$0). Internal 'this.' calls bypass TransactionInterceptor!"
       }
     }
+  },
+  {
+    id: 'ch-17',
+    title: {
+      fr: '17. JUnit 5 (Jupiter), Cycle de Vie JVM & ByteBuddy Mocks',
+      en: '17. JUnit 5 (Jupiter), JVM Lifecycle & ByteBuddy Mocks'
+    },
+    subtitle: {
+      fr: 'PER_METHOD vs PER_CLASS sur le Tas, assertAll(), Objenesis et CUnit vs JUnit',
+      en: 'PER_METHOD vs PER_CLASS Heap Lifecycle, assertAll(), Objenesis & CUnit vs JUnit'
+    },
+    category: 'Advanced',
+    estimatedTime: '22 min',
+    iconName: 'FlaskConical',
+    summary: {
+      fr: "JUnit 5 (Platform + Jupiter + Vintage) exécute les tests grâce à la réflexion JVM. Par défaut (Lifecycle.PER_METHOD), il instancie un nouvel objet de classe de test sur le Tas pour chaque méthode @Test afin d'isoler l'état. Couplé à Mockito, il génère des sous-classes ByteBuddy dans le Metaspace et alloue les @Mock sans exécuter leur constructeur via Objenesis.",
+      en: "JUnit 5 (Platform + Jupiter + Vintage) executes tests via JVM reflection. By default (Lifecycle.PER_METHOD), it allocates a fresh Heap instance per @Test method for strict field isolation. With Mockito, ByteBuddy creates runtime subclasses in Metaspace allocated via Objenesis without calling constructors."
+    },
+    codeSnippet: `@ExtendWith(MockitoExtension.class)
+class OrderServiceTest { // Visibilité package-private autorisée en JUnit 5 !
+    @Mock
+    private PaymentGateway gateway; // Alloué par ByteBuddy + Objenesis (sans <init>)
+
+    @InjectMocks
+    private OrderService service;
+
+    @BeforeEach
+    void init() { /* Réinitialisé avant chaque @Test */ }
+
+    @Test
+    @DisplayName("Vérifie le paiement et la capture d'exception")
+    void shouldFailOnNegativeAmount() {
+        assertAll(
+            () -> assertThrows(IllegalArgumentException.class, () -> service.pay(-10)),
+            () -> verifyNoInteractions(gateway)
+        );
+    }
+}`,
+    lineBreakdown: [
+      {
+        lineNumber: 1,
+        code: '@ExtendWith(MockitoExtension.class)',
+        explanation: {
+          fr: "Remplace l'ancien @RunWith de JUnit 4 (limité à 1 seul runner). Plusieurs extensions peuvent être composées simultanément.",
+          en: "Replaces JUnit 4's single @RunWith runner; multiple extensions compose cleanly."
+        }
+      },
+      {
+        lineNumber: 3,
+        code: '    @Mock',
+        explanation: {
+          fr: "ByteBuddy génère une classe PaymentGateway$MockitoMock$... dans le Metaspace et Objenesis l'alloue sur le Tas sans invoquer son constructeur réel !",
+          en: "ByteBuddy generates a runtime subclass in Metaspace and Objenesis allocates it on Heap bypassing the real constructor!"
+        },
+        memoryHint: {
+          fr: "Méthode non stubbée retourne 0/false/null directement via MockMethodInterceptor.",
+          en: "Unstubbed methods return 0/false/null via MockMethodInterceptor."
+        }
+      },
+      {
+        lineNumber: 15,
+        code: '        assertAll(',
+        explanation: {
+          fr: "Exécute toutes les expressions lambda Executable et agrège chaque AssertionFailedError dans une seule MultipleFailuresError.",
+          en: "Runs every Executable lambda and collects all AssertionFailedError instances into a single MultipleFailuresError."
+        }
+      }
+    ],
+    bytecode: [
+      { offset: 0, opcode: 'new #1 <OrderServiceTest>', comment: { fr: 'JUnit PER_METHOD alloue une instance fraîche sur le Tas', en: 'JUnit PER_METHOD allocates fresh Heap instance' } },
+      { offset: 3, opcode: 'invokespecial #2 <OrderServiceTest.<init>>', comment: { fr: 'Constructeur exécuté avant chaque @Test', en: 'Constructor called per @Test method' } },
+      { offset: 6, opcode: 'invokevirtual #3 <OrderServiceTest.init>', comment: { fr: 'Exécute @BeforeEach sur cette instance', en: 'Runs @BeforeEach on fresh instance' } },
+      { offset: 9, opcode: 'invokevirtual #4 <OrderServiceTest.shouldFailOnNegativeAmount>', comment: { fr: 'Exécute le @Test isolé', en: 'Executes isolated @Test' } }
+    ],
+    cComparison: {
+      cCode: `// En C (CUnit / Criterion) :
+// 1. Aucune réflexion au runtime : enregistrement manuel par pointeur de fonction
+void test_negative_payment(void) {
+    CU_ASSERT_EQUAL(pay(-10), ERR_INVALID_AMOUNT);
+}
+
+int main() {
+    CU_initialize_registry();
+    CU_pSuite suite = CU_add_suite("OrderSuite", NULL, NULL);
+    CU_add_test(suite, "negative", test_negative_payment);
+    CU_basic_run_tests();
+}`,
+      explanation: {
+        fr: "En C, il n'existe pas d'annotations ni de réflexion : il faut enregistrer manuellement les pointeurs de fonction ou utiliser fork() (Criterion) pour isoler les crashes SEGFAULT. En Java, JUnit Platform découvre les annotations par scan de bytecode et isole les échecs par exceptions JVM.",
+        en: "C lacks runtime reflection: tests require manual function pointer registration or OS fork() (Criterion) to survive segfaults. Java JUnit scans bytecode annotations and handles exceptions safely."
+      },
+      memoryDifference: {
+        fr: "C/Criterion : Processus OS fork() séparés par test pour survie mémoire. Java/JUnit : Une même JVM, mais une nouvelle instance d'objet sur le Tas par méthode @Test (PER_METHOD).",
+        en: "C/Criterion: OS fork() process isolation per test. Java/JUnit: Single JVM with fresh Heap test class instances per @Test method."
+      }
+    },
+    executionSteps: [
+      {
+        stepIndex: 0,
+        lineNumber: 2,
+        programCounter: 0,
+        description: {
+          fr: "JupiterTestEngine découvre OrderServiceTest et alloue @0xTEST_1 sur le Tas pour le test #1 (mode PER_METHOD).",
+          en: "JupiterTestEngine discovers OrderServiceTest and allocates @0xTEST_1 on Heap for test #1 (PER_METHOD)."
+        },
+        stackFrames: [
+          { method: 'JupiterTestEngine.execute()', variables: [{ name: 'lifecycle', type: 'Lifecycle', value: 'PER_METHOD' }], operandStack: [] }
+        ],
+        heapObjects: [
+          { id: 'test-inst-1', address: '@0xTEST_1', className: 'OrderServiceTest', fields: { gateway: '@0xMOCK_BB' }, isGarbage: false },
+          { id: 'mock-1', address: '@0xMOCK_BB', className: 'PaymentGateway$MockitoMock$0', fields: { interceptor: 'MockMethodInterceptor' }, isGarbage: false }
+        ],
+        stdout: ['[JUnit Jupiter] Allocated fresh test instance @0xTEST_1 + ByteBuddy mock @0xMOCK_BB.']
+      },
+      {
+        stepIndex: 1,
+        lineNumber: 15,
+        programCounter: 9,
+        description: {
+          fr: "Exécution de assertAll(...) : les deux lambdas sont évalués sans court-circuit et réussissent.",
+          en: "Executing assertAll(...): both lambda executables are evaluated and pass."
+        },
+        stackFrames: [
+          { method: 'OrderServiceTest.shouldFailOnNegativeAmount()', variables: [{ name: 'this', type: 'OrderServiceTest', value: '@0xTEST_1', isRef: true }], operandStack: ['assertThrows -> PASSED', 'verifyNoInteractions -> PASSED'] }
+        ],
+        heapObjects: [
+          { id: 'test-inst-1', address: '@0xTEST_1', className: 'OrderServiceTest', fields: { gateway: '@0xMOCK_BB' }, isGarbage: false }
+        ],
+        stdout: ['[JUnit 5] Test PASSED (100% isolated).']
+      }
+    ],
+    jvmMemoryNotes: {
+      fr: "Si une classe contient 100 méthodes @Test, JUnit alloue successivement 100 objets dans l'espace Eden du Tas (ramassés aussitôt par le Minor GC). Avec @SpringBootTest, Spring Test met l'ApplicationContext entier en cache (Context Caching) entre les classes de test partageant la même configuration.",
+      en: "For 100 @Test methods, JUnit allocates 100 short-lived instances in Eden space (reclaimed instantly by Minor GC). @SpringBootTest caches the full ApplicationContext across test classes sharing identical configs."
+    },
+    commonPitfalls: {
+      fr: [
+        "Utiliser when(spy.get(0)).thenReturn(...) au lieu de doReturn(...).when(spy).get(0) : Java appelle la méthode réelle de l'espion avant même l'appel à when() !",
+        "Passer en @TestInstance(Lifecycle.PER_CLASS) sans réinitialiser les champs mutables dans @BeforeEach -> tests non déterministes dépendant de l'ordre d'exécution !",
+        "Abuser de @SpringBootTest sur chaque test unitaire au lieu de tests POJO purs ou de slices (@WebMvcTest, @DataJpaTest)."
+      ],
+      en: [
+        "Using when(spy.get(0)) instead of doReturn(...).when(spy).get(0): triggers real method execution prior to stubbing!",
+        "Using PER_CLASS without resetting mutable fields in @BeforeEach -> flaky order-dependent tests!",
+        "Using heavy @SpringBootTest everywhere instead of pure POJO unit tests or slices (@WebMvcTest, @DataJpaTest)."
+      ]
+    },
+    quiz: {
+      id: 'q-17',
+      question: {
+        fr: "Par défaut (sans annotation @TestInstance), combien d'instances de la classe de test JUnit 5 alloue-t-il sur le Tas pour une classe contenant 5 méthodes @Test ?",
+        en: "By default (without @TestInstance), how many test class instances does JUnit 5 allocate on the Heap for a class containing 5 @Test methods?"
+      },
+      options: {
+        fr: [
+          "1 seule instance partagée entre les 5 tests.",
+          "5 instances distinctes (1 par méthode @Test) grâce au mode PER_METHOD.",
+          "0 instance : toutes les méthodes @Test sont static.",
+          "2 instances : une pour @BeforeAll et une pour @AfterAll."
+        ],
+        en: [
+          "1 shared instance across all 5 tests.",
+          "5 distinct Heap instances (1 per @Test method) under default PER_METHOD lifecycle.",
+          "0 instances: @Test methods are static.",
+          "2 instances: one for @BeforeAll and one for @AfterAll."
+        ]
+      },
+      correctIndex: 1,
+      explanation: {
+        fr: "Exact ! En mode par défaut PER_METHOD, JUnit 5 instancie un objet tout neuf pour chaque méthode @Test afin qu'aucune mutation de champ d'un test ne pollue les tests suivants.",
+        en: "Spot on! Under default PER_METHOD lifecycle, JUnit 5 creates a brand new test instance per @Test method so mutable fields cannot leak across tests."
+      }
+    }
   }
 ];
 

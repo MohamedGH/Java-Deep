@@ -9,6 +9,11 @@ import {
   calculateBeanScopeMemory,
   simulateSpringAopCall
 } from './springEngine';
+import {
+  simulateJunitLifecycle,
+  evaluateAssertions,
+  simulateMockitoBehavior
+} from './junitEngine';
 
 /**
  * Pure functional unit test runner that validates every single implemented feature
@@ -165,14 +170,16 @@ export const runAllFunctionalTests = (): TestResult[] => {
     'Tests Java String Pool behavior (literals share identity, "new" allocates fresh heap node)',
     'Memory',
     () => {
-      const stringPool = new Set<string>(['Hello']);
-      const internString = (s: string) => {
-        if (!stringPool.has(s)) stringPool.add(s);
-        return stringPool;
+      const initialPool = new Set<string>(['Hello']);
+      const internString = (pool: ReadonlySet<string>, s: string) => {
+        if (pool.has(s)) return pool;
+        const next = new Set(pool);
+        next.add(s);
+        return next;
       };
 
-      const poolAfterLiteral = internString('Hello'); // already present
-      const poolAfterNewLiteral = internString('World'); // adds 'World'
+      const poolAfterLiteral = internString(initialPool, 'Hello'); // already present
+      const poolAfterNewLiteral = internString(poolAfterLiteral, 'World'); // adds 'World'
 
       const passed = poolAfterLiteral.size === 1 && poolAfterNewLiteral.size === 2;
       return {
@@ -959,6 +966,86 @@ export const runAllFunctionalTests = (): TestResult[] => {
       return {
         passed,
         assertion: `External CGLIB proxy rolled back TX on RuntimeException; self-invocation bypassed proxy (transactionOpened=false).`
+      };
+    }
+  );
+
+  // 25. JUnit 5 Lifecycle Allocation: PER_METHOD vs PER_CLASS
+  runTest(
+    't-junit-1',
+    'JUnit 5 Heap Instance Lifecycle (PER_METHOD vs PER_CLASS)',
+    'Verifies PER_METHOD allocates N isolated test instances with static @BeforeAll, while PER_CLASS reuses 1 shared instance',
+    'Memory',
+    () => {
+      const perMethod = simulateJunitLifecycle('PER_METHOD', 4);
+      const perClass = simulateJunitLifecycle('PER_CLASS', 4);
+
+      const passed =
+        perMethod.heapInstancesAllocated === 4 &&
+        perMethod.beforeAllMustBeStatic &&
+        !perMethod.sharedStateRisk &&
+        perClass.heapInstancesAllocated === 1 &&
+        !perClass.beforeAllMustBeStatic &&
+        perClass.sharedStateRisk;
+
+      return {
+        passed,
+        assertion: `PER_METHOD allocated ${perMethod.heapInstancesAllocated} isolated instances; PER_CLASS shared 1 instance.`
+      };
+    }
+  );
+
+  // 26. JUnit 5 Assertions: Fail-Fast Sequential vs assertAll MultipleFailuresError
+  runTest(
+    't-junit-2',
+    'JUnit 5 assertAll() Grouped Failure Collection',
+    'Validates sequential assertions stop on first failure (hiding subsequent bugs) while assertAll executes all lambdas',
+    'Functional',
+    () => {
+      const checks = [
+        { label: 'id', expected: 1, actual: 1 },
+        { label: 'name', expected: 'Alice', actual: 'Bob' },
+        { label: 'age', expected: 25, actual: 17 }
+      ];
+
+      const seq = evaluateAssertions(checks, 'sequential');
+      const grouped = evaluateAssertions(checks, 'assertAll');
+
+      const passed =
+        seq.executedCount === 2 &&
+        seq.failures.length === 1 &&
+        seq.hiddenFailuresCount === 1 &&
+        grouped.executedCount === 3 &&
+        grouped.failures.length === 2 &&
+        grouped.hiddenFailuresCount === 0;
+
+      return {
+        passed,
+        assertion: `Sequential hid ${seq.hiddenFailuresCount} failure; assertAll collected all ${grouped.failures.length} failures.`
+      };
+    }
+  );
+
+  // 27. Mockito ByteBuddy @Mock (Objenesis) vs @Spy when()/doReturn()
+  runTest(
+    't-junit-3',
+    'Mockito ByteBuddy @Mock (Objenesis) & @Spy Stubbing Safety',
+    'Verifies @Mock skips real constructor via Objenesis, whereas @Spy wraps real object and triggers trap with when() vs safe doReturn()',
+    'JVM Engine',
+    () => {
+      const mockSim = simulateMockitoBehavior('mock', false);
+      const spyTrap = simulateMockitoBehavior('spy', false);
+      const spySafe = simulateMockitoBehavior('spy', true);
+
+      const passed =
+        !mockSim.constructorInvoked &&
+        spyTrap.constructorInvoked &&
+        spyTrap.whenStubTrapTriggered &&
+        !spySafe.whenStubTrapTriggered;
+
+      return {
+        passed,
+        assertion: `@Mock bypassed constructor (Objenesis); @Spy with when() caught stubbing trap, doReturn() safe.`
       };
     }
   );
