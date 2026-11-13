@@ -1,4 +1,4 @@
-export type RouteType = 'chapters' | 'stepper' | 'modifiers' | 'domain' | 'buildtools' | 'spring' | 'junit' | 'vtable' | 'visualizer' | 'bytecode' | 'history' | 'cvsjava' | 'playground' | 'quizzes' | 'tests';
+export type RouteType = 'chapters' | 'stepper' | 'modifiers' | 'domain' | 'buildtools' | 'spring' | 'junit' | 'javadoc' | 'vtable' | 'visualizer' | 'bytecode' | 'history' | 'cvsjava' | 'playground' | 'quizzes' | 'tests';
 
 export interface JavaVersionRelease {
   version: string;

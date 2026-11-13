@@ -1,7 +1,7 @@
 import React from 'react';
 import { useJavaStore } from '../store/useJavaStore';
 import { RouteType } from '../types';
-import { BookOpen, Cpu, PlayCircle, SplitSquareVertical, Terminal, Award, CheckSquare, Sparkles, Globe, Menu, X, Binary, History, Layers, Shield, Box, Hammer, Leaf, FlaskConical } from 'lucide-react';
+import { BookOpen, Cpu, PlayCircle, SplitSquareVertical, Terminal, Award, CheckSquare, Sparkles, Globe, Menu, X, Binary, History, Layers, Shield, Box, Hammer, Leaf, FlaskConical, FileText } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
   const { currentRoute, setRoute, language, setLanguage } = useJavaStore();
@@ -15,6 +15,7 @@ export const Navbar: React.FC = () => {
     { id: 'buildtools', label: { fr: 'Maven / Gradle / Ant', en: 'Build Tools' }, icon: <Hammer className="w-3.5 h-3.5" /> },
     { id: 'spring', label: { fr: 'Spring & IoC', en: 'Spring & IoC' }, icon: <Leaf className="w-3.5 h-3.5" /> },
     { id: 'junit', label: { fr: 'JUnit 5 & Mocks', en: 'JUnit 5 & Mocks' }, icon: <FlaskConical className="w-3.5 h-3.5" /> },
+    { id: 'javadoc', label: { fr: 'Javadoc & Doclets', en: 'Javadoc' }, icon: <FileText className="w-3.5 h-3.5" /> },
     { id: 'vtable', label: { fr: 'VTable', en: 'VTable' }, icon: <Layers className="w-3.5 h-3.5" /> },
     { id: 'bytecode', label: { fr: 'Bytecode', en: 'Bytecode' }, icon: <Binary className="w-3.5 h-3.5" /> },
     { id: 'history', label: { fr: 'Versions', en: 'History' }, icon: <History className="w-3.5 h-3.5" /> },

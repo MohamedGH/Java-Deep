@@ -3267,6 +3267,163 @@ int main() {
         en: "Spot on! Under default PER_METHOD lifecycle, JUnit 5 creates a brand new test instance per @Test method so mutable fields cannot leak across tests."
       }
     }
+  },
+  {
+    id: 'ch-18',
+    title: {
+      fr: '18. Javadoc, DocTree AST, Doclets & Markdown (JEP 467)',
+      en: '18. Javadoc, DocTree AST, Doclets & Markdown (JEP 467)'
+    },
+    subtitle: {
+      fr: 'Frontend javac, -Xdoclint, StandardDoclet, {@snippet} (Java 18) et /// Markdown (Java 23)',
+      en: 'javac frontend, -Xdoclint, StandardDoclet, {@snippet} (Java 18) & /// Markdown (Java 23)'
+    },
+    category: 'Advanced',
+    estimatedTime: '20 min',
+    iconName: 'FileText',
+    summary: {
+      fr: "Javadoc n'est pas un simple extracteur de texte : il s'appuie directement sur le frontend du compilateur javac pour construire un arbre syntaxique DocTree, vérifier la validité des liens {@link} et contrats (-Xdoclint), générer des portails HTML5 via le StandardDoclet (jdk.javadoc.doclet) et supporte les extraits testables {@snippet} (Java 18) ainsi que le Markdown natif /// (Java 23).",
+      en: "Javadoc is not a regex scraper: it runs inside javac's compiler frontend to build a DocTree AST, resolve {@link} symbols, enforce -Xdoclint checks, emit HTML5 via StandardDoclet (jdk.javadoc.doclet), and supports {@snippet} (Java 18) plus native /// Markdown (Java 23)."
+    },
+    codeSnippet: `/**
+ * Computes net discount using {@code BigDecimal} rounding.
+ *
+ * @param price initial positive amount
+ * @return discounted price
+ * @throws IllegalArgumentException if {@code price} is negative
+ */
+@Deprecated(since = "2.0")
+public BigDecimal applyDiscount(BigDecimal price) {
+    if (price.signum() < 0) throw new IllegalArgumentException();
+    return price.multiply(new BigDecimal("0.90"));
+}`,
+    lineBreakdown: [
+      {
+        lineNumber: 1,
+        code: '/**',
+        explanation: {
+          fr: "Le double astérisque /** signale au Lexer de javac de conserver ce commentaire et de le parser en arbre DocTree (contrairement à /* et // qui sont jetés dès l'analyse lexicale).",
+          en: "The double asterisk /** signals javac's lexer to preserve and parse this comment into a DocTree AST (unlike /* and // which are discarded)."
+        }
+      },
+      {
+        lineNumber: 2,
+        code: ' * Computes net discount using {@code BigDecimal} rounding.',
+        explanation: {
+          fr: "Le tag inline {@code ...} empêche le parseur HTML strict de -Xdoclint d'interpréter les chevrons génériques (ex: List<String>) comme des balises HTML invalides.",
+          en: "Inline {@code ...} escapes angle brackets so -Xdoclint's HTML parser does not misread generics like List<String> as invalid HTML tags."
+        },
+        memoryHint: {
+          fr: "0 octet dans le bytecode .class : le texte Javadoc reste uniquement dans les fichiers .java / -javadoc.jar.",
+          en: "0 bytes in .class bytecode: Javadoc prose lives strictly in .java sources or -javadoc.jar artifacts."
+        }
+      },
+      {
+        lineNumber: 8,
+        code: '@Deprecated(since = "2.0")',
+        explanation: {
+          fr: "Contrairement au tag @deprecated (HTML uniquement), l'annotation @Deprecated est inscrite dans le bytecode (RuntimeVisibleAnnotations) et déclenche un warning javac.",
+          en: "Unlike the Javadoc @deprecated tag, the @Deprecated annotation is written into .class bytecode and triggers javac compiler warnings."
+        }
+      }
+    ],
+    bytecode: [
+      { offset: 0, opcode: 'RuntimeVisibleAnnotations: @Deprecated(since="2.0")', comment: { fr: 'Seule l annotation survit dans le .class (aucun texte Javadoc)', en: 'Only the @Deprecated annotation survives in .class (zero Javadoc prose)' } },
+      { offset: 4, opcode: 'aload_1', comment: { fr: 'Charge price sur la pile d opérandes', en: 'Load price onto operand stack' } },
+      { offset: 5, opcode: 'invokevirtual #2 <BigDecimal.signum>', comment: { fr: 'Vérifie précondition documentée dans @throws', en: 'Validates precondition documented by @throws' } }
+    ],
+    cComparison: {
+      cCode: `/**
+ * @brief Computes discounted price in C (Doxygen)
+ * @param price positive amount
+ * @return discounted value
+ */
+double apply_discount(double price);`,
+      explanation: {
+        fr: "En C, la documentation repose sur un outil externe (Doxygen) avec son propre parseur C et gestion manuelle des #ifdef du préprocesseur. En Java, javadoc est livré nativement avec le JDK et utilise l'AST réel de javac pour vérifier chaque référence {@link}.",
+        en: "In C, documentation uses an external tool (Doxygen) with a standalone C parser. In Java, javadoc ships with the JDK and reuses javac's real AST and classpath resolution for {@link}."
+      },
+      memoryDifference: {
+        fr: "Ni Doxygen ni Javadoc n'existent dans le binaire exécutable final (ELF ou .class) : tous deux sont exploités exclusivement à la compilation / génération de portail.",
+        en: "Neither Doxygen nor Javadoc prose enters the compiled binary (ELF or .class); both operate strictly on source ASTs."
+      }
+    },
+    executionSteps: [
+      {
+        stepIndex: 0,
+        lineNumber: 1,
+        programCounter: 0,
+        description: {
+          fr: "javac lit le fichier .java : /** est capturé comme DocCommentTree tandis que /* et // sont jetés.",
+          en: "javac lexes .java source: /** is captured as a DocCommentTree while /* and // are discarded."
+        },
+        stackFrames: [
+          { method: 'JavadocTool.run()', variables: [{ name: 'doclint', type: 'String', value: 'all' }], operandStack: [] }
+        ],
+        heapObjects: [
+          { id: 'doctree-1', address: '@0xAST_DOC', className: 'com.sun.source.doctree.DocCommentTree', fields: { blockTags: '3 (@param, @return, @throws)', inlineTags: '2 ({@code})' }, isGarbage: false }
+        ],
+        stdout: ['[javac DocTree] Parsed /** comment with 0 -Xdoclint errors.']
+      },
+      {
+        stepIndex: 1,
+        lineNumber: 9,
+        programCounter: 5,
+        description: {
+          fr: "StandardDoclet (jdk.javadoc.doclet) émet la page HTML5 avec index de recherche JS et valide le contrat.",
+          en: "StandardDoclet emits searchable HTML5 documentation pages from DocletEnvironment."
+        },
+        stackFrames: [
+          { method: 'StandardDoclet.run()', variables: [{ name: 'visibility', type: 'Access', value: '-protected (default)' }], operandStack: ['HTML5 emitted'] }
+        ],
+        heapObjects: [
+          { id: 'doclet-1', address: '@0xDOCLET', className: 'jdk.javadoc.doclet.StandardDoclet', fields: { output: 'apidocs/index.html', frames: 'false (HTML5)' }, isGarbage: false }
+        ],
+        stdout: ['[StandardDoclet] Generated target/apidocs/index.html + element-list']
+      }
+    ],
+    jvmMemoryNotes: {
+      fr: "Aucune mémoire Heap ou Metaspace n'est consommée par les commentaires Javadoc à l'exécution de votre application : le compilateur javac les exclut totalement du fichier .class. En Maven/Gradle, la documentation est distribuée séparément dans un archive *-javadoc.jar requise par Maven Central.",
+      en: "Zero Heap or Metaspace memory is consumed by Javadoc comments at runtime—javac strips them completely from .class files. Maven/Gradle ship them separately in a *-javadoc.jar required by Maven Central."
+    },
+    commonPitfalls: {
+      fr: [
+        "Écrire List<String> directement dans la Javadoc sans {@code List<String>} : -Xdoclint:html interprète <String> comme une balise HTML inconnue et fait échouer le build Maven/Gradle.",
+        "Utiliser /* ... */ au lieu de /** ... */ : le commentaire est totalement ignoré par javac et n'apparaît jamais dans l'API HTML.",
+        "Ajouter @deprecated en Javadoc sans mettre l'annotation @Deprecated sur la méthode (ou inversement)."
+      ],
+      en: [
+        "Writing raw List<String> without {@code List<String>}: -Xdoclint:html parses <String> as an invalid HTML tag and fails the build.",
+        "Using /* ... */ instead of /** ... */: silently discarded by javac's lexer.",
+        "Using @deprecated Javadoc tag without the @Deprecated Java annotation (or vice versa)."
+      ]
+    },
+    quiz: {
+      id: 'q-18',
+      question: {
+        fr: "Pourquoi écrire directement List<String> dans un commentaire /** ... */ (hors Markdown ///) provoque-t-il souvent une erreur de build avec -Xdoclint en Java 8+ ?",
+        en: "Why does writing raw List<String> inside a classic /** ... */ comment often fail the build under Java 8+ -Xdoclint?"
+      },
+      options: {
+        fr: [
+          "Parce que javac charge toute la Javadoc dans le Metaspace au runtime.",
+          "Parce que le parseur HTML strict de -Xdoclint interprète <String> comme une balise HTML invalide (il faut l'entourer de {@code List<String>}).",
+          "Parce que Javadoc n'autorise pas les types génériques dans les signatures Java.",
+          "Parce que -Xdoclint exige le format Doxygen @brief."
+        ],
+        en: [
+          "Because javac loads Javadoc comments into Metaspace at runtime.",
+          "Because -Xdoclint's HTML parser treats <String> as an unknown HTML tag unless wrapped with {@code List<String>}.",
+          "Because Javadoc forbids generic types in Java signatures.",
+          "Because -Xdoclint requires Doxygen @brief syntax."
+        ]
+      },
+      correctIndex: 1,
+      explanation: {
+        fr: "Exact ! Sous Java 8+, -Xdoclint vérifie strictement le HTML. Tout chevron <...> non reconnu comme balise HTML valide doit être protégé par {@code ...} ou {@literal ...} (ou écrit en Markdown /// depuis Java 23).",
+        en: "Spot on! Java 8+ -Xdoclint validates HTML strictly. Raw angle brackets like <String> are treated as invalid HTML tags unless wrapped in {@code ...} or written using Java 23 /// Markdown."
+      }
+    }
   }
 ];
 

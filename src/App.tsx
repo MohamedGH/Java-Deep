@@ -18,6 +18,7 @@ import { DomainModelsView } from './components/DomainModelsView';
 import { BuildToolsView } from './components/BuildToolsView';
 import { SpringView } from './components/SpringView';
 import { JUnitView } from './components/JUnitView';
+import { JavadocView } from './components/JavadocView';
 import { MobileBottomNav } from './components/MobileBottomNav';
 
 export default function App() {
@@ -39,6 +40,8 @@ export default function App() {
         return <SpringView />;
       case 'junit':
         return <JUnitView />;
+      case 'javadoc':
+        return <JavadocView />;
       case 'vtable':
         return <VTableView />;
       case 'bytecode':

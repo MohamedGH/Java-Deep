@@ -14,6 +14,11 @@ import {
   evaluateAssertions,
   simulateMockitoBehavior
 } from './junitEngine';
+import {
+  parseAndValidateJavadoc,
+  compareJavadocVisibilityFlags,
+  getJavadocEvolutionMilestones
+} from './javadocEngine';
 
 /**
  * Pure functional unit test runner that validates every single implemented feature
@@ -1046,6 +1051,99 @@ export const runAllFunctionalTests = (): TestResult[] => {
       return {
         passed,
         assertion: `@Mock bypassed constructor (Objenesis); @Spy with when() caught stubbing trap, doReturn() safe.`
+      };
+    }
+  );
+
+  // 28. Javadoc -Xdoclint Parser & Contract Validation
+  runTest(
+    't-javadoc-1',
+    'Javadoc DocTree Parser & -Xdoclint Contract Validation',
+    'Verifies clean Javadoc passes 0 errors, raw <String> triggers html-unescaped-generic, missing @param/@return are caught, and /* */ is lexer-ignored',
+    'Functional',
+    () => {
+      const clean = parseAndValidateJavadoc(
+        `/**\n * Computes tax using {@code BigDecimal}.\n * @param amount net amount\n * @return tax value\n */`,
+        'public BigDecimal tax(BigDecimal amount)'
+      );
+      const broken = parseAndValidateJavadoc(
+        `/**\n * Filters List<String> items.\n * @param users list\n */`,
+        'public List<String> filter(List<String> users, int minAge)'
+      );
+      const ignored = parseAndValidateJavadoc(
+        `/*\n * Standard comment ignored by lexer\n */`,
+        'public void run()'
+      );
+
+      const passed =
+        clean.isValidDocComment &&
+        clean.errorCount === 0 &&
+        broken.errorCount >= 3 && // html-unescaped-generic + missing @param minAge + missing @return
+        broken.issues.some((i) => i.rule === 'html-unescaped-generic') &&
+        broken.issues.some((i) => i.rule === 'reference-missing-param') &&
+        broken.issues.some((i) => i.rule === 'missing-return') &&
+        !ignored.isValidDocComment &&
+        ignored.issues.some((i) => i.rule === 'lexer-ignored');
+
+      return {
+        passed,
+        assertion: `Clean Javadoc=0 errors; broken caught ${broken.errorCount} -Xdoclint errors; /* */ flagged lexer-ignored.`
+      };
+    }
+  );
+
+  // 29. Javadoc StandardDoclet Visibility Matrix (-public/-protected/-package/-private)
+  runTest(
+    't-javadoc-2',
+    'Javadoc StandardDoclet Visibility Filter Matrix',
+    'Validates -protected is default (public+protected) and -public/-package/-private expose the exact expected member sets',
+    'JVM Engine',
+    () => {
+      const pub = compareJavadocVisibilityFlags('public');
+      const prot = compareJavadocVisibilityFlags('protected');
+      const pkg = compareJavadocVisibilityFlags('package');
+      const priv = compareJavadocVisibilityFlags('private');
+
+      const passed =
+        pub.includedModifiers.length === 1 &&
+        prot.isDefaultFlag &&
+        prot.includedModifiers.join(',') === 'public,protected' &&
+        pkg.includedModifiers.length === 3 &&
+        priv.includedModifiers.length === 4 &&
+        priv.excludedModifiers.length === 0;
+
+      return {
+        passed,
+        assertion: `Visibility flags verified: -public(1), -protected[default](2), -package(3), -private(4).`
+      };
+    }
+  );
+
+  // 30. Javadoc Java 18 {@snippet} & Java 23 Markdown /// Validation
+  runTest(
+    't-javadoc-3',
+    'Javadoc Evolution Milestones & Java 23 Markdown /// Parsing',
+    'Verifies JEP 467 /// Markdown comments parse cleanly without {@code} traps and evolution timeline covers Java 18 & 23',
+    'Functional',
+    () => {
+      const mdDoc = parseAndValidateJavadoc(
+        `/// Finds items inside \`List<String>\`.\n/// @param query search term\n/// @return matching list`,
+        'public List<String> search(String query)'
+      );
+      const milestones = getJavadocEvolutionMilestones();
+      const hasJep413 = milestones.some((m) => m.version === 'Java 18' && m.tagOrApi.includes('@snippet'));
+      const hasJep467 = milestones.some((m) => m.version === 'Java 23' && m.tagOrApi.includes('///'));
+
+      const passed =
+        mdDoc.isValidDocComment &&
+        mdDoc.isMarkdownDoc &&
+        mdDoc.errorCount === 0 &&
+        hasJep413 &&
+        hasJep467;
+
+      return {
+        passed,
+        assertion: `Java 23 /// Markdown parsed with 0 HTML generic errors; JEP 413 & JEP 467 milestones verified.`
       };
     }
   );
