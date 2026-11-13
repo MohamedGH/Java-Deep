@@ -1,125 +1,112 @@
 import React from 'react';
 import { useJavaStore } from '../store/useJavaStore';
 import { RouteType } from '../types';
-import { BookOpen, Cpu, PlayCircle, SplitSquareVertical, Terminal, Award, CheckSquare, Sparkles, Globe, Menu, X, Binary, History, Layers, Shield, Box, Hammer, Leaf, FlaskConical, FileText } from 'lucide-react';
+import { Globe, LayoutGrid } from 'lucide-react';
+import { ALL_MODULES } from './ModuleExplorerDrawer';
 
-export const Navbar: React.FC = () => {
+interface NavbarProps {
+  onOpenModules: () => void;
+}
+
+export const Navbar: React.FC<NavbarProps> = ({ onOpenModules }) => {
   const { currentRoute, setRoute, language, setLanguage } = useJavaStore();
-  const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
 
-  const navItems: Array<{ id: RouteType; label: { fr: string; en: string }; icon: React.ReactNode }> = [
-    { id: 'chapters', label: { fr: 'Cours', en: 'Lessons' }, icon: <BookOpen className="w-3.5 h-3.5" /> },
-    { id: 'stepper', label: { fr: 'Pas-à-Pas', en: 'Stepper' }, icon: <PlayCircle className="w-3.5 h-3.5" /> },
-    { id: 'modifiers', label: { fr: 'Static & Visibilité', en: 'Modifiers' }, icon: <Shield className="w-3.5 h-3.5" /> },
-    { id: 'domain', label: { fr: 'Record, DDD & Enum', en: 'Record, DDD & Enum' }, icon: <Box className="w-3.5 h-3.5" /> },
-    { id: 'buildtools', label: { fr: 'Maven / Gradle / Ant', en: 'Build Tools' }, icon: <Hammer className="w-3.5 h-3.5" /> },
-    { id: 'spring', label: { fr: 'Spring & IoC', en: 'Spring & IoC' }, icon: <Leaf className="w-3.5 h-3.5" /> },
-    { id: 'junit', label: { fr: 'JUnit 5 & Mocks', en: 'JUnit 5 & Mocks' }, icon: <FlaskConical className="w-3.5 h-3.5" /> },
-    { id: 'javadoc', label: { fr: 'Javadoc & Doclets', en: 'Javadoc' }, icon: <FileText className="w-3.5 h-3.5" /> },
-    { id: 'vtable', label: { fr: 'VTable', en: 'VTable' }, icon: <Layers className="w-3.5 h-3.5" /> },
-    { id: 'bytecode', label: { fr: 'Bytecode', en: 'Bytecode' }, icon: <Binary className="w-3.5 h-3.5" /> },
-    { id: 'history', label: { fr: 'Versions', en: 'History' }, icon: <History className="w-3.5 h-3.5" /> },
-    { id: 'visualizer', label: { fr: 'Mémoire JVM', en: 'JVM Memory' }, icon: <Cpu className="w-3.5 h-3.5" /> },
-    { id: 'cvsjava', label: { fr: 'C vs Java', en: 'C vs Java' }, icon: <SplitSquareVertical className="w-3.5 h-3.5" /> },
-    { id: 'quizzes', label: { fr: 'Quiz', en: 'Quizzes' }, icon: <Award className="w-3.5 h-3.5" /> },
-    { id: 'tests', label: { fr: 'Tests', en: 'Tests' }, icon: <CheckSquare className="w-3.5 h-3.5" /> }
+  const primaryRoutes: Array<{ id: RouteType; label: { fr: string; en: string } }> = [
+    { id: 'chapters', label: { fr: 'Cours', en: 'Lessons' } },
+    { id: 'stepper', label: { fr: 'Simulateur', en: 'Stepper' } },
+    { id: 'quizzes', label: { fr: 'Quiz', en: 'Quizzes' } },
+    { id: 'tests', label: { fr: 'Tests', en: 'Tests' } }
   ];
 
-  const handleNavClick = (route: RouteType) => {
-    setRoute(route);
-    setMobileMenuOpen(false);
-  };
+  const isLabActive = !['chapters', 'stepper', 'quizzes', 'tests'].includes(currentRoute);
+  const activeLab = isLabActive ? ALL_MODULES.find((m) => m.id === currentRoute) : null;
 
   return (
-    <header className="sticky top-0 z-50 bg-slate-950/90 backdrop-blur-md border-b border-slate-800 text-white">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between min-h-16 py-2 gap-3">
-          {/* Logo */}
-          <div className="flex items-center space-x-3 cursor-pointer select-none shrink-0" onClick={() => handleNavClick('chapters')}>
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 via-orange-500 to-red-600 flex items-center justify-center shadow-lg shadow-orange-500/20">
-              <Sparkles className="w-4 h-4 text-slate-950 animate-pulse font-bold" />
-            </div>
-            <div>
-              <div className="flex items-center space-x-2">
-                <span className="text-lg font-black bg-gradient-to-r from-amber-400 via-orange-400 to-red-500 bg-clip-text text-transparent">
-                  JavaBabel
-                </span>
-                <span className="hidden xl:inline-block text-[10px] font-mono uppercase tracking-widest px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30">
-                  JVM & C Rosetta
-                </span>
-              </div>
-              <p className="text-[10px] text-slate-400 font-mono hidden xl:block">Pédagogie Babel-IT appliquée au Java</p>
-            </div>
-          </div>
+    <header className="sticky top-0 z-40 bg-[#090d16]/90 backdrop-blur-md border-b border-slate-800/80">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between gap-8">
+        {/* Zone 1: Single-line Brand Wordmark */}
+        <button
+          onClick={() => setRoute('chapters')}
+          className="text-lg font-extrabold tracking-tight text-white hover:text-amber-400 transition-colors whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 rounded-md"
+        >
+          JavaBabel
+        </button>
 
-          {/* Desktop Nav */}
-          <nav className="hidden lg:flex flex-wrap items-center justify-center gap-1">
-            {navItems.map((item) => {
-              const active = currentRoute === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => handleNavClick(item.id)}
-                  className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl text-[11px] font-semibold whitespace-nowrap transition-all ${
-                    active
-                      ? 'bg-amber-500/15 text-amber-300 border border-amber-500/40 shadow-sm'
-                      : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
-                  }`}
-                >
-                  {item.icon}
-                  <span>{item.label[language]}</span>
-                </button>
-              );
-            })}
-          </nav>
-
-          {/* Right Controls: Language switch & Mobile toggle */}
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={() => setLanguage(language === 'fr' ? 'en' : 'fr')}
-              className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-700 hover:border-amber-500/50 text-xs font-semibold text-slate-200 transition-all"
-              title="Changer de langue / Switch Language"
-            >
-              <Globe className="w-3.5 h-3.5 text-amber-400" />
-              <span>{language === 'fr' ? '🇫🇷 FR' : '🇬🇧 EN'}</span>
-            </button>
-
-            {/* Mobile menu trigger */}
-            <div className="flex lg:hidden">
-              <button
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="p-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 focus:outline-none"
-                aria-label="Menu"
-              >
-                {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Mobile Drawer */}
-      {mobileMenuOpen && (
-        <div className="lg:hidden bg-slate-950 border-b border-slate-800 px-4 pt-2 pb-4 space-y-1 animate-fadeIn">
-          {navItems.map((item) => {
+        {/* Zone 2: Clean Single-Line Navigation Links */}
+        <nav className="hidden lg:flex items-center gap-6 text-sm font-medium">
+          {primaryRoutes.slice(0, 2).map((item) => {
             const active = currentRoute === item.id;
             return (
               <button
                 key={item.id}
-                onClick={() => handleNavClick(item.id)}
-                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
+                onClick={() => setRoute(item.id)}
+                className={`py-1.5 whitespace-nowrap shrink-0 transition-colors border-b-2 ${
                   active
-                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-900'
+                    ? 'text-amber-400 border-amber-400 font-semibold'
+                    : 'text-slate-300 border-transparent hover:text-white'
                 }`}
               >
-                {item.icon}
-                <span>{item.label[language]}</span>
+                {item.label[language]}
               </button>
             );
           })}
+
+          <button
+            onClick={onOpenModules}
+            className={`py-1.5 whitespace-nowrap shrink-0 flex items-center gap-1.5 transition-colors border-b-2 ${
+              isLabActive
+                ? 'text-amber-400 border-amber-400 font-semibold'
+                : 'text-slate-300 border-transparent hover:text-white'
+            }`}
+          >
+            <LayoutGrid className="w-3.5 h-3.5 shrink-0" />
+            <span>
+              {activeLab
+                ? activeLab.title[language]
+                : language === 'fr'
+                ? 'Ateliers'
+                : 'Workbenches'}
+            </span>
+          </button>
+
+          {primaryRoutes.slice(2).map((item) => {
+            const active = currentRoute === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setRoute(item.id)}
+                className={`py-1.5 whitespace-nowrap shrink-0 transition-colors border-b-2 ${
+                  active
+                    ? 'text-amber-400 border-amber-400 font-semibold'
+                    : 'text-slate-300 border-transparent hover:text-white'
+                }`}
+              >
+                {item.label[language]}
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* Zone 3: Single Primary Action (Language Switch) */}
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={onOpenModules}
+            className="lg:hidden min-h-[40px] px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-xs font-semibold text-slate-200 hover:text-white flex items-center gap-1.5 whitespace-nowrap shrink-0"
+          >
+            <LayoutGrid className="w-3.5 h-3.5 text-amber-400" />
+            <span>{language === 'fr' ? 'Ateliers' : 'Labs'}</span>
+          </button>
+
+          <button
+            onClick={() => setLanguage(language === 'fr' ? 'en' : 'fr')}
+            className="min-h-[40px] px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs font-semibold text-slate-200 transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+            title={language === 'fr' ? 'Passer en anglais' : 'Switch to French'}
+          >
+            <Globe className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span>{language === 'fr' ? 'FR' : 'EN'}</span>
+          </button>
         </div>
-      )}
+      </div>
     </header>
   );
 };

@@ -165,7 +165,7 @@ export const VTableView: React.FC = () => {
               <Layers className="w-4 h-4" />
               <span>1. Thread Stack (Variable Locale)</span>
             </div>
-            {dispatchStep >= 1 && <span className="text-[10px] text-amber-400 font-bold animate-pulse">Étape 1</span>}
+            {dispatchStep >= 1 && <span className="text-[11px] text-amber-400 font-semibold">Étape 1</span>}
           </div>
 
           <p className="text-xs text-slate-400">
@@ -194,7 +194,7 @@ export const VTableView: React.FC = () => {
               <Cpu className="w-4 h-4" />
               <span>2. Tas (Object Header & Klass Word)</span>
             </div>
-            {dispatchStep >= 2 && <span className="text-[10px] text-emerald-400 font-bold animate-pulse">Étape 2</span>}
+            {dispatchStep >= 2 && <span className="text-[11px] text-emerald-400 font-semibold">Étape 2</span>}
           </div>
 
           <p className="text-xs text-slate-400">
@@ -227,7 +227,7 @@ export const VTableView: React.FC = () => {
               <Binary className="w-4 h-4" />
               <span>3. Metaspace VTable (Résolution)</span>
             </div>
-            {dispatchStep >= 3 && <span className="text-[10px] text-blue-400 font-bold animate-pulse">Étape 3</span>}
+            {dispatchStep >= 3 && <span className="text-[11px] text-blue-400 font-semibold">Étape 3</span>}
           </div>
 
           <p className="text-xs text-slate-400">
@@ -282,7 +282,7 @@ export const VTableView: React.FC = () => {
                 key={slot.slot}
                 className={`p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all ${
                   isTarget && dispatchStep >= 3
-                    ? 'bg-amber-500/15 border-l-4 border-amber-400'
+                    ? 'bg-amber-500/15 ring-1 ring-inset ring-amber-400/50'
                     : 'hover:bg-slate-800/40'
                 }`}
               >

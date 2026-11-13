@@ -353,7 +353,7 @@ export const BytecodeModifierView: React.FC = () => {
               </div>
             ) : (
               <div className="py-12 text-center space-y-2 text-slate-400">
-                <Binary className="w-8 h-8 text-amber-400/50 mx-auto animate-pulse" />
+                <Binary className="w-8 h-8 text-amber-400/50 mx-auto" />
                 <p className="text-xs">
                   {language === 'fr'
                     ? 'Cliquez sur "Exécuter le Bytecode Modifié" pour tester le comportement de votre bytecode patché.'

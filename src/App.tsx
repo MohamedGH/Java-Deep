@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useJavaStore } from './store/useJavaStore';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
@@ -20,9 +20,11 @@ import { SpringView } from './components/SpringView';
 import { JUnitView } from './components/JUnitView';
 import { JavadocView } from './components/JavadocView';
 import { MobileBottomNav } from './components/MobileBottomNav';
+import { ModuleExplorerDrawer } from './components/ModuleExplorerDrawer';
 
 export default function App() {
   const { currentRoute } = useJavaStore();
+  const [modulesOpen, setModulesOpen] = useState(false);
 
   const renderActiveRoute = () => {
     switch (currentRoute) {
@@ -64,13 +66,14 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950 pb-16 lg:pb-0">
-      <Navbar />
+    <div className="min-h-screen bg-[#090d16] text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950 pb-14 lg:pb-0">
+      <Navbar onOpenModules={() => setModulesOpen(true)} />
       <main className="flex-1">
         {renderActiveRoute()}
       </main>
       <Footer />
-      <MobileBottomNav />
+      <MobileBottomNav onOpenModules={() => setModulesOpen(true)} />
+      <ModuleExplorerDrawer isOpen={modulesOpen} onClose={() => setModulesOpen(false)} />
       <ErrorToast />
     </div>
   );

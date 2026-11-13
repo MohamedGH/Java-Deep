@@ -1,16 +1,26 @@
 import React, { useState } from 'react';
 import { JAVA_CHAPTERS } from '../data/javaChapters';
 import { useJavaStore } from '../store/useJavaStore';
+import { ChapterNavigatorBar } from './ChapterDrawer';
 import confetti from 'canvas-confetti';
-import { Award, CheckCircle2, XCircle, ArrowRight, RotateCcw, Sparkles } from 'lucide-react';
+import { CheckCircle2, XCircle, ArrowRight } from 'lucide-react';
 
 export const QuizView: React.FC = () => {
-  const { quizScores, setQuizScore, language } = useJavaStore();
-  const [selectedChapterIndex, setSelectedChapterIndex] = useState(0);
+  const {
+    selectedChapterId,
+    setSelectedChapterId,
+    quizScores,
+    setQuizScore,
+    language
+  } = useJavaStore();
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
 
-  const currentChapter = JAVA_CHAPTERS[selectedChapterIndex];
+  const currentIndex = Math.max(
+    0,
+    JAVA_CHAPTERS.findIndex((c) => c.id === selectedChapterId)
+  );
+  const currentChapter = JAVA_CHAPTERS[currentIndex] || JAVA_CHAPTERS[0];
   const quiz = currentChapter.quiz;
 
   const handleSelectOption = (index: number) => {
@@ -26,8 +36,8 @@ export const QuizView: React.FC = () => {
     if (isCorrect) {
       setQuizScore(currentChapter.id, 100);
       confetti({
-        particleCount: 90,
-        spread: 80,
+        particleCount: 80,
+        spread: 75,
         origin: { y: 0.6 }
       });
     } else {
@@ -36,87 +46,83 @@ export const QuizView: React.FC = () => {
   };
 
   const handleNextQuiz = () => {
+    const nextIdx = (currentIndex + 1) % JAVA_CHAPTERS.length;
+    setSelectedChapterId(JAVA_CHAPTERS[nextIdx].id);
     setSelectedOption(null);
     setIsSubmitted(false);
-    setSelectedChapterIndex((prev) => (prev + 1) % JAVA_CHAPTERS.length);
   };
 
   const currentScore = quizScores[currentChapter.id];
   const passedTotal = Object.values(quizScores).filter((s) => s === 100).length;
+  const pct = Math.round((passedTotal / JAVA_CHAPTERS.length) * 100);
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-      {/* Header */}
-      <div className="bg-slate-900/90 rounded-2xl p-6 sm:p-8 border border-slate-800 shadow-2xl relative overflow-hidden text-center">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
-        <div className="inline-flex items-center space-x-2 text-amber-400 font-semibold text-xs uppercase tracking-wider mb-2">
-          <Award className="w-4 h-4" />
-          <span>{language === 'fr' ? 'Validation des Connaissances' : 'Knowledge Mastery Quizzes'}</span>
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
+      {/* Chapter Picker Bar (Replaces 18 pill buttons) */}
+      <ChapterNavigatorBar
+        onChapterSelect={() => {
+          setSelectedOption(null);
+          setIsSubmitted(false);
+        }}
+        contextLabel={{ fr: 'Quiz de Maîtrise', en: 'Mastery Quiz' }}
+      />
+
+      {/* Mastery Summary Strip */}
+      <section className="bg-[#0F1623] rounded-2xl p-5 sm:p-6 border border-slate-800/90 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-white">
+            {language === 'fr' ? 'Quiz Java & JVM' : 'Java & JVM Mastery Quiz'}
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-400 mt-1">
+            {language === 'fr'
+              ? 'Validez votre compréhension des mécanismes JVM chapitre par chapitre.'
+              : 'Validate your understanding of JVM internals chapter by chapter.'}
+          </p>
         </div>
-        <h1 className="text-2xl sm:text-3xl font-black text-white">
-          {language === 'fr' ? 'Quiz de Maîtrise Java & JVM' : 'Java & JVM Mastery Quizzes'}
-        </h1>
-        <p className="text-slate-300 text-sm mt-1 max-w-xl mx-auto">
-          {language === 'fr'
-            ? 'Évaluez votre compréhension des mécanismes JVM, de la pile, du tas, du Garbage Collector et du C vs Java avec explications instantanées.'
-            : 'Validate your understanding of JVM internals, stack, heap, garbage collection, and C vs Java with immediate feedback.'}
-        </p>
 
-        {/* Global Score Progress */}
-        <div className="mt-4 inline-flex items-center space-x-2 bg-slate-950 px-4 py-2 rounded-xl border border-slate-800 text-xs font-mono">
-          <span className="text-slate-400">{language === 'fr' ? 'Score Global :' : 'Overall Score:'}</span>
-          <span className="text-emerald-400 font-bold">{passedTotal} / {JAVA_CHAPTERS.length} Validés</span>
+        <div className="flex items-center gap-4 shrink-0">
+          <div className="text-right">
+            <div className="text-xs text-slate-400">
+              {language === 'fr' ? 'Progression globale' : 'Overall mastery'}
+            </div>
+            <div className="text-base font-bold text-emerald-400 font-mono tabular-nums">
+              {passedTotal} / {JAVA_CHAPTERS.length} ({pct}%)
+            </div>
+          </div>
         </div>
+      </section>
 
-        {/* Chapter Quiz Selector Pills */}
-        <div className="flex flex-wrap items-center justify-center gap-2 mt-6">
-          {JAVA_CHAPTERS.map((ch, idx) => {
-            const active = idx === selectedChapterIndex;
-            const scored = quizScores[ch.id] !== undefined;
-            const passed = quizScores[ch.id] === 100;
+      {/* Active Quiz Card */}
+      <section className="bg-[#0F1623] rounded-2xl p-6 sm:p-8 border border-slate-800/90 space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-4">
+          <div className="text-xs text-slate-400">
+            <span className="text-amber-400 font-semibold">{currentChapter.category}</span>
+            <span aria-hidden="true" className="mx-2">·</span>
+            <span>{currentChapter.title[language]}</span>
+          </div>
 
-            return (
-              <button
-                key={ch.id}
-                onClick={() => {
-                  setSelectedChapterIndex(idx);
-                  setSelectedOption(null);
-                  setIsSubmitted(false);
-                }}
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center space-x-1.5 ${
-                  active
-                    ? 'bg-amber-500 text-slate-950 font-bold shadow-lg shadow-amber-500/20'
-                    : scored
-                    ? passed
-                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                      : 'bg-red-500/20 text-red-400 border border-red-500/30'
-                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                }`}
-              >
-                <span>Q{idx + 1}</span>
-                {passed && <CheckCircle2 className="w-3 h-3 text-emerald-400" />}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Quiz Card */}
-      <div className="bg-slate-900/90 rounded-2xl p-6 sm:p-8 border border-slate-800 shadow-2xl space-y-6">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-          <span className="text-xs font-mono text-amber-400 font-bold uppercase tracking-wider">
-            {currentChapter.title[language]}
-          </span>
           {currentScore !== undefined && (
-            <span className={`text-xs font-bold px-3 py-1 rounded-full ${
-              currentScore === 100 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'
-            }`}>
-              {currentScore === 100 ? '✅ Réussi (100%)' : '❌ Incorrect (0%)'}
+            <span
+              className={`text-xs font-semibold flex items-center gap-1.5 ${
+                currentScore === 100 ? 'text-emerald-400' : 'text-red-400'
+              }`}
+            >
+              {currentScore === 100 ? (
+                <>
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>{language === 'fr' ? 'Validé (100%)' : 'Passed (100%)'}</span>
+                </>
+              ) : (
+                <>
+                  <XCircle className="w-4 h-4" />
+                  <span>{language === 'fr' ? 'À revoir (0%)' : 'Review (0%)'}</span>
+                </>
+              )}
             </span>
           )}
         </div>
 
-        <h2 className="text-lg sm:text-xl font-bold text-white leading-snug">
+        <h2 className="text-lg sm:text-xl font-bold text-white leading-snug text-balance">
           {quiz.question[language]}
         </h2>
 
@@ -125,17 +131,17 @@ export const QuizView: React.FC = () => {
             const isSelected = selectedOption === idx;
             const isCorrect = idx === quiz.correctIndex;
 
-            let btnStyle = 'bg-slate-950 border-slate-800 text-slate-200 hover:border-slate-700';
+            let btnStyle = 'bg-[#090D16] border-slate-800 text-slate-200 hover:border-slate-700';
 
             if (isSelected) {
-              btnStyle = 'bg-amber-500/20 border-amber-500/50 text-amber-300 shadow-sm';
+              btnStyle = 'bg-amber-500/15 border-amber-500/50 text-amber-200';
             }
 
             if (isSubmitted) {
               if (isCorrect) {
-                btnStyle = 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300 font-bold';
+                btnStyle = 'bg-emerald-500/15 border-emerald-500/50 text-emerald-200 font-semibold';
               } else if (isSelected && !isCorrect) {
-                btnStyle = 'bg-red-500/20 border-red-500/50 text-red-300';
+                btnStyle = 'bg-red-500/15 border-red-500/50 text-red-200';
               }
             }
 
@@ -144,53 +150,57 @@ export const QuizView: React.FC = () => {
                 key={idx}
                 onClick={() => handleSelectOption(idx)}
                 disabled={isSubmitted}
-                className={`w-full text-left p-4 rounded-xl border transition-all flex items-center justify-between ${btnStyle}`}
+                className={`w-full min-h-[48px] text-left p-4 rounded-xl border transition-colors flex items-center justify-between gap-3 ${btnStyle}`}
               >
-                <div className="flex items-center space-x-3">
-                  <span className="w-6 h-6 rounded-lg bg-slate-900 flex items-center justify-center font-mono text-xs text-slate-400 border border-slate-700">
+                <div className="flex items-center gap-3.5">
+                  <span className="w-7 h-7 rounded-lg bg-slate-900 flex items-center justify-center font-mono text-xs text-slate-400 border border-slate-800 shrink-0">
                     {String.fromCharCode(65 + idx)}
                   </span>
-                  <span className="text-xs sm:text-sm font-medium">{option}</span>
+                  <span className="text-xs sm:text-sm">{option}</span>
                 </div>
 
-                {isSubmitted && isCorrect && <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />}
-                {isSubmitted && isSelected && !isCorrect && <XCircle className="w-5 h-5 text-red-400 shrink-0" />}
+                {isSubmitted && isCorrect && (
+                  <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                )}
+                {isSubmitted && isSelected && !isCorrect && (
+                  <XCircle className="w-5 h-5 text-red-400 shrink-0" />
+                )}
               </button>
             );
           })}
         </div>
 
         {isSubmitted && (
-          <div className="bg-slate-950 p-5 rounded-xl border border-slate-800 space-y-2 animate-fadeIn">
-            <h4 className="text-xs font-bold text-amber-400 uppercase tracking-wider">
-              {language === 'fr' ? 'Explication Pédagogique' : 'Explanation'}
-            </h4>
-            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-sans">
+          <div className="bg-[#090D16] p-5 rounded-xl border border-slate-800 space-y-2">
+            <h3 className="text-xs font-semibold text-amber-400">
+              {language === 'fr' ? 'Explication pédagogique' : 'Explanation'}
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
               {quiz.explanation[language]}
             </p>
           </div>
         )}
 
-        <div className="flex items-center justify-between pt-4 border-t border-slate-800">
+        <div className="flex items-center justify-end pt-4 border-t border-slate-800">
           {!isSubmitted ? (
             <button
               onClick={handleSubmitAnswer}
               disabled={selectedOption === null}
-              className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-bold text-xs transition-all shadow-lg shadow-amber-500/20 disabled:opacity-50"
+              className="min-h-[44px] px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-colors disabled:opacity-40"
             >
-              {language === 'fr' ? 'Valider ma Réponse' : 'Submit Answer'}
+              {language === 'fr' ? 'Valider ma réponse' : 'Submit answer'}
             </button>
           ) : (
             <button
               onClick={handleNextQuiz}
-              className="flex items-center space-x-2 px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs transition-all shadow-lg shadow-amber-500/20 ml-auto"
+              className="min-h-[44px] flex items-center gap-2 px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-colors"
             >
-              <span>{language === 'fr' ? 'Question Suivante' : 'Next Question'}</span>
+              <span>{language === 'fr' ? 'Chapitre suivant' : 'Next chapter'}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           )}
         </div>
-      </div>
+      </section>
     </div>
   );
 };

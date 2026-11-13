@@ -261,7 +261,7 @@ public class StreamFilter {
 
           {!analysisResult && !loading && !error && (
             <div className="py-20 text-center space-y-3 text-slate-400">
-              <Sparkles className="w-10 h-10 text-amber-400/40 mx-auto animate-bounce" />
+              <Sparkles className="w-10 h-10 text-amber-400/40 mx-auto" />
               <p className="text-sm font-medium">
                 {language === 'fr'
                   ? 'Cliquez sur "Dissecter avec l\'IA" pour obtenir l\'explication ligne par ligne et l\'analyse de la mémoire.'
@@ -273,7 +273,7 @@ public class StreamFilter {
           {loading && (
             <div className="py-20 text-center space-y-4 text-slate-300">
               <div className="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto" />
-              <p className="text-sm font-semibold animate-pulse">
+              <p className="text-sm font-semibold">
                 {language === 'fr' ? 'Consultation de l\'expert Java & Spécification JVM...' : 'Consulting Java Expert & JVM Spec...'}
               </p>
             </div>

@@ -19,6 +19,12 @@ import {
   compareJavadocVisibilityFlags,
   getJavadocEvolutionMilestones
 } from './javadocEngine';
+import {
+  filterChapters,
+  getAdjacentChapterId,
+  REGISTERED_ROUTES
+} from './navigationEngine';
+import { JAVA_CHAPTERS } from '../data/javaChapters';
 
 /**
  * Pure functional unit test runner that validates every single implemented feature
@@ -1144,6 +1150,55 @@ export const runAllFunctionalTests = (): TestResult[] => {
       return {
         passed,
         assertion: `Java 23 /// Markdown parsed with 0 HTML generic errors; JEP 413 & JEP 467 milestones verified.`
+      };
+    }
+  );
+
+  // 31. Chapter Drawer Search & Circular Navigation Engine
+  runTest(
+    't-nav-1',
+    'Zero-Select Chapter Drawer Filter & Circular Stepping',
+    'Validates pure search/category filtering and circular prev/next navigation across all 18 Java chapters',
+    'Routing',
+    () => {
+      const javadocResults = filterChapters(JAVA_CHAPTERS, 'markdown', 'Advanced', 'fr');
+      const prevFromFirst = getAdjacentChapterId(JAVA_CHAPTERS, JAVA_CHAPTERS[0].id, 'prev');
+      const nextFromLast = getAdjacentChapterId(
+        JAVA_CHAPTERS,
+        JAVA_CHAPTERS[JAVA_CHAPTERS.length - 1].id,
+        'next'
+      );
+
+      const passed =
+        javadocResults.some((c) => c.id === 'ch-18') &&
+        prevFromFirst === JAVA_CHAPTERS[JAVA_CHAPTERS.length - 1].id &&
+        nextFromLast === JAVA_CHAPTERS[0].id;
+
+      return {
+        passed,
+        assertion: `Drawer search matched ch-18; circular stepping wraps cleanly (${JAVA_CHAPTERS.length} chapters).`
+      };
+    }
+  );
+
+  // 32. Complete Route Registry Coverage
+  runTest(
+    't-nav-2',
+    'Unified Workbench Route Registry Completeness',
+    'Verifies all 16 application routes (including spring, junit, javadoc) are registered uniquely for drawer navigation',
+    'Routing',
+    () => {
+      const uniqueCount = new Set(REGISTERED_ROUTES).size;
+      const hasModernModules =
+        REGISTERED_ROUTES.includes('spring') &&
+        REGISTERED_ROUTES.includes('junit') &&
+        REGISTERED_ROUTES.includes('javadoc');
+
+      const passed = uniqueCount === REGISTERED_ROUTES.length && uniqueCount === 16 && hasModernModules;
+
+      return {
+        passed,
+        assertion: `All ${uniqueCount} routes registered uniquely without duplicates.`
       };
     }
   );
