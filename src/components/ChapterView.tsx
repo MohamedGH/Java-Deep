@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { JAVA_CHAPTERS } from '../data/javaChapters';
 import { useJavaStore } from '../store/useJavaStore';
 import { ChapterNavigatorBar } from './ChapterDrawer';
+import { CHAPTER_TO_LAB_ROUTE, getGroupForChapterId } from '../utils/navigationEngine';
+import { ALL_MODULES } from './ModuleExplorerDrawer';
 import {
   CheckCircle2,
   Bookmark,
@@ -10,7 +12,8 @@ import {
   HelpCircle,
   AlertTriangle,
   ArrowRight,
-  PlayCircle
+  PlayCircle,
+  FlaskConical
 } from 'lucide-react';
 
 export const ChapterView: React.FC = () => {
@@ -28,6 +31,9 @@ export const ChapterView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'java' | 'bytecode' | 'c'>('java');
 
   const chapter = JAVA_CHAPTERS.find((c) => c.id === selectedChapterId) || JAVA_CHAPTERS[0];
+  const chapterGroup = getGroupForChapterId(chapter.id);
+  const linkedLabRoute = CHAPTER_TO_LAB_ROUTE[chapter.id];
+  const linkedLab = linkedLabRoute ? ALL_MODULES.find((m) => m.id === linkedLabRoute) : null;
   const isCompleted = completedChapters.includes(chapter.id);
   const isBookmarked = bookmarkedChapters.includes(chapter.id);
   const activeExplanation = chapter.lineBreakdown.find((item) => item.lineNumber === activeLine);
@@ -43,13 +49,15 @@ export const ChapterView: React.FC = () => {
       {/* Chapter Overview */}
       <section className="bg-[#0F1623] rounded-2xl p-6 sm:p-8 border border-slate-800/90 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-2 text-xs text-slate-400">
-            <span className="font-semibold text-amber-400">{chapter.category}</span>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
+            <span className="font-semibold text-amber-400">{chapterGroup.title[language]}</span>
+            <span aria-hidden="true">·</span>
+            <span>{chapter.category}</span>
             <span aria-hidden="true">·</span>
             <span className="tabular-nums">{chapter.estimatedTime}</span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => toggleBookmarkChapter(chapter.id)}
               className={`min-h-[44px] sm:min-h-[40px] min-w-[44px] sm:min-w-[40px] px-3 py-2 rounded-xl border transition-colors flex items-center justify-center ${
@@ -82,13 +90,23 @@ export const ChapterView: React.FC = () => {
               </span>
             </button>
 
+            {linkedLab && linkedLabRoute && (
+              <button
+                onClick={() => setRoute(linkedLabRoute)}
+                className="min-h-[44px] sm:min-h-[40px] px-4 py-2 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 border border-sky-500/40 font-semibold text-xs transition-colors flex items-center gap-1.5 whitespace-nowrap"
+              >
+                <FlaskConical className="w-4 h-4 shrink-0" />
+                <span>{linkedLab.title[language]}</span>
+              </button>
+            )}
+
             <button
               onClick={() => setRoute('stepper')}
               className="min-h-[44px] sm:min-h-[40px] px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-colors flex items-center gap-1.5 whitespace-nowrap"
             >
               <PlayCircle className="w-4 h-4 shrink-0" />
-              <span className="hidden sm:inline">
-                {language === 'fr' ? 'Ouvrir Stepper' : 'Open Stepper'}
+              <span>
+                {language === 'fr' ? 'Stepper' : 'Stepper'}
               </span>
             </button>
           </div>

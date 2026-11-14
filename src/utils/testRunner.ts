@@ -20,10 +20,20 @@ import {
   getJavadocEvolutionMilestones
 } from './javadocEngine';
 import {
+  CHAPTER_GROUPS,
+  CHAPTER_TO_LAB_ROUTE,
+  LAB_ROUTE_TO_CHAPTER,
   filterChapters,
   getAdjacentChapterId,
+  getGroupForChapterId,
+  getGroupForLabRoute,
   REGISTERED_ROUTES
 } from './navigationEngine';
+import {
+  simulateKotlinNullSafety,
+  evaluateKotlinJvmLowering,
+  simulateCoroutineStateMachine
+} from './kotlinEngine';
 import { JAVA_CHAPTERS } from '../data/javaChapters';
 
 /**
@@ -1192,13 +1202,150 @@ export const runAllFunctionalTests = (): TestResult[] => {
       const hasModernModules =
         REGISTERED_ROUTES.includes('spring') &&
         REGISTERED_ROUTES.includes('junit') &&
-        REGISTERED_ROUTES.includes('javadoc');
+        REGISTERED_ROUTES.includes('javadoc') &&
+        REGISTERED_ROUTES.includes('kotlin');
 
-      const passed = uniqueCount === REGISTERED_ROUTES.length && uniqueCount === 16 && hasModernModules;
+      const passed = uniqueCount === REGISTERED_ROUTES.length && uniqueCount === 17 && hasModernModules;
 
       return {
         passed,
         assertion: `All ${uniqueCount} routes registered uniquely without duplicates.`
+      };
+    }
+  );
+
+  // 33. Kotlin Null-Safety Bytecode & Int? Heap Boxing
+  runTest(
+    't-kotlin-1',
+    'Kotlin Null-Safety Bytecode & Int? Heap Boxing Model',
+    'Verifies non-null Int stays unboxed (I)I, Int? boxes to Integer on Heap, Elvis ?: emits ifnull with zero Optional, and !! throws NPE on null',
+    'Memory',
+    () => {
+      const nonNullInt = simulateKotlinNullSafety('Int', '?.', false);
+      const boxedNullableInt = simulateKotlinNullSafety('Int?', '?:', true);
+      const bangTrap = simulateKotlinNullSafety('String?', '!!', true);
+
+      const passed =
+        !nonNullInt.heapBoxedObject &&
+        nonNullInt.jvmSignature === '(I)I' &&
+        boxedNullableInt.heapBoxedObject &&
+        boxedNullableInt.jvmSignature === '(Ljava/lang/Integer;)I' &&
+        !boxedNullableInt.runtimeNpeThrown &&
+        bangTrap.runtimeNpeThrown;
+
+      return {
+        passed,
+        assertion: `Int=${nonNullInt.jvmSignature} unboxed; Int?=${boxedNullableInt.jvmSignature} Heap-boxed; !! on null threw NPE.`
+      };
+    }
+  );
+
+  // 34. Kotlin Lowering (inline/reified & @JvmInline value class)
+  runTest(
+    't-kotlin-2',
+    'kotlinc Lowering: inline/reified & @JvmInline Value Classes',
+    'Validates inline reified eliminates type erasure via callsite copy and @JvmInline avoids wrapper Heap allocations',
+    'JVM Engine',
+    () => {
+      const inlineSpec = evaluateKotlinJvmLowering('inline_reified');
+      const valueSpec = evaluateKotlinJvmLowering('value_class');
+      const dataSpec = evaluateKotlinJvmLowering('data_class');
+
+      const passed =
+        inlineSpec.bytecodeHighlights.some((h) => h.includes('Order.class')) &&
+        valueSpec.heapImpact.includes('0 bytes') &&
+        dataSpec.loweredJvmJava.includes('component1()');
+
+      return {
+        passed,
+        assertion: `kotlinc lowering verified: inline reified ldc Order.class, value class 0B Heap, data class componentN().`
+      };
+    }
+  );
+
+  // 35. Kotlin Coroutines CPS State Machine Stepper
+  runTest(
+    't-kotlin-3',
+    'Kotlin Coroutine CPS Continuation State Machine',
+    'Verifies suspend function label transitions (0 -> 1 SUSPENDED -> 2 RESUMED) release OS carrier thread without blocking',
+    'Functional',
+    () => {
+      const s0 = simulateCoroutineStateMachine(0);
+      const s1 = simulateCoroutineStateMachine(1);
+      const s2 = simulateCoroutineStateMachine(2);
+
+      const passed =
+        s0.currentStep.state === 'RUNNING' &&
+        s0.currentStep.labelValue === 0 &&
+        s1.currentStep.state === 'SUSPENDED' &&
+        s1.currentStep.labelValue === 1 &&
+        s2.currentStep.state === 'RESUMED' &&
+        s2.currentStep.labelValue === 2;
+
+      return {
+        passed,
+        assertion: `CPS labels validated cleanly: RUNNING(0) -> SUSPENDED(1) -> RESUMED(2) across threads.`
+      };
+    }
+  );
+
+  // 38. Chapter Grouping Integrity & Filtering
+  runTest(
+    't-group-1',
+    '5-Chapter Curriculum Partition & Group Filtering',
+    'Validates that all 19 lessons in JAVA_CHAPTERS are partitioned cleanly across CHAPTER_GROUPS without duplicates or omissions',
+    'Functional',
+    () => {
+      const allGroupedIds = CHAPTER_GROUPS.flatMap((g) => g.chapterIds);
+      const uniqueGroupedIds = new Set(allGroupedIds);
+      const allJavaIds = JAVA_CHAPTERS.map((c) => c.id);
+      const missingIds = allJavaIds.filter((id) => !uniqueGroupedIds.has(id));
+      const group4Filtered = filterChapters(JAVA_CHAPTERS, '', 'All', 'fr', 'group-4');
+      const ch16Group = getGroupForChapterId('ch-16');
+
+      const passed =
+        CHAPTER_GROUPS.length === 5 &&
+        allGroupedIds.length === JAVA_CHAPTERS.length &&
+        uniqueGroupedIds.size === JAVA_CHAPTERS.length &&
+        missingIds.length === 0 &&
+        group4Filtered.map((c) => c.id).join(',') === 'ch-15,ch-16,ch-17,ch-18' &&
+        ch16Group.id === 'group-4';
+
+      return {
+        passed,
+        assertion: `5 chapters cover ${uniqueGroupedIds.size}/${JAVA_CHAPTERS.length} unique lessons; Chapitre IV resolves ch-15..ch-18.`
+      };
+    }
+  );
+
+  // 39. Bidirectional Chapter <-> Workbench Route Mapping
+  runTest(
+    't-group-2',
+    'Bidirectional Chapter & Lab Route Synchronization',
+    'Validates that every grouped labRoute resolves back to its parent ChapterGroupSpec and linked chapter lesson ID',
+    'Functional',
+    () => {
+      const allLabRoutes = CHAPTER_GROUPS.flatMap((g) => g.labRoutes);
+      const allLabsMapped = allLabRoutes.every((route) => {
+        const group = getGroupForLabRoute(route);
+        const linkedChapter = LAB_ROUTE_TO_CHAPTER[route];
+        return (
+          group !== null &&
+          typeof linkedChapter === 'string' &&
+          group.chapterIds.includes(linkedChapter)
+        );
+      });
+      const forwardMatches =
+        CHAPTER_TO_LAB_ROUTE['ch-19'] === 'kotlin' &&
+        CHAPTER_TO_LAB_ROUTE['ch-16'] === 'spring' &&
+        getGroupForLabRoute('kotlin')?.roman === 'V' &&
+        getGroupForLabRoute('chapters') === null;
+
+      const passed = allLabRoutes.length >= 12 && allLabsMapped && forwardMatches;
+
+      return {
+        passed,
+        assertion: `${allLabRoutes.length} lab routes bi-directionally synchronized with parent Chapter groups (I..V).`
       };
     }
   );

@@ -3424,6 +3424,160 @@ double apply_discount(double price);`,
         en: "Spot on! Java 8+ -Xdoclint validates HTML strictly. Raw angle brackets like <String> are treated as invalid HTML tags unless wrapped in {@code ...} or written using Java 23 /// Markdown."
       }
     }
+  },
+  {
+    id: 'ch-19',
+    title: {
+      fr: '19. Kotlin sur la JVM : Bytecode, Boxing & Coroutines CPS',
+      en: '19. Kotlin on the JVM: Bytecode, Boxing & CPS Coroutines'
+    },
+    subtitle: {
+      fr: 'kotlinc lowering, String? vs Int? boxing, inline/reified, @JvmInline et machines à états suspend',
+      en: 'kotlinc lowering, String? vs Int? boxing, inline/reified, @JvmInline & suspend state machines'
+    },
+    category: 'Advanced',
+    estimatedTime: '22 min',
+    iconName: 'Code2',
+    summary: {
+      fr: "Kotlin compile directement vers du bytecode JVM standard exécuté sur HotSpot aux côtés du code Java. Ce chapitre décortique comment kotlinc traduit la null-safety (ifnull sans Optional<T>), le boxing caché de Int? en java.lang.Integer sur le Tas, les fonctions inline/reified qui contournent l'effacement de type, les @JvmInline value classes et la transformation CPS des coroutines.",
+      en: "Kotlin compiles straight to standard JVM bytecode running on HotSpot alongside Java. Dissect how kotlinc lowers null-safety (ifnull without Optional<T>), Int? Heap boxing into java.lang.Integer, inline/reified generics bypassing erasure, @JvmInline value classes, and stackless CPS coroutine state machines."
+    },
+    codeSnippet: `data class Order(val id: Long, val amount: Int?)
+
+inline fun <reified T> tagName(): String = T::class.java.simpleName
+
+suspend fun checkout(order: Order): Int {
+    val qty: Int = order.amount ?: 1
+    return qty * 2
+}`,
+    lineBreakdown: [
+      {
+        lineNumber: 1,
+        code: 'data class Order(val id: Long, val amount: Int?)',
+        explanation: {
+          fr: "ATTENTION MÉMOIRE : `id: Long` devient un primitif `long` (8 octets), mais `amount: Int?` DOIT être boxé en `java.lang.Integer` sur le Tas car les primitifs JVM ne peuvent jamais valoir `null`.",
+          en: "MEMORY GOTCHA: `id: Long` compiles to raw 8-byte `long`, whereas `amount: Int?` MUST box into a Heap `java.lang.Integer` because JVM primitives cannot hold null."
+        },
+        memoryHint: {
+          fr: "Int? ajoute un pointeur + objet Integer (16+ octets sur le Tas) au lieu de 4 octets inline.",
+          en: "Int? incurs a Heap java.lang.Integer allocation (16+ bytes) instead of a 4-byte inline int."
+        }
+      },
+      {
+        lineNumber: 3,
+        code: 'inline fun <reified T> tagName(): String = T::class.java.simpleName',
+        explanation: {
+          fr: "`inline` copie le bytecode de `tagName` directement chez l'appelant, permettant à `reified T` de substituer la constante réelle `ldc Order.class` sans Type Erasure.",
+          en: "`inline` copies bytecode into the callsite so `reified T` injects concrete `ldc Order.class`, bypassing JVM generic type erasure."
+        }
+      },
+      {
+        lineNumber: 6,
+        code: '    val qty: Int = order.amount ?: 1',
+        explanation: {
+          fr: "L'opérateur Elvis `?:` se compile en un simple saut `ifnull` en bytecode puis `Integer.intValue()`, sans jamais allouer de wrapper `Optional<Integer>`.",
+          en: "Elvis `?:` compiles to a direct `ifnull` bytecode jump and `Integer.intValue()` without allocating any `Optional<Integer>` wrapper."
+        }
+      }
+    ],
+    bytecode: [
+      { offset: 0, opcode: 'aload_0', comment: { fr: 'Charge Order sur la pile', en: 'Load Order reference' } },
+      { offset: 1, opcode: 'invokevirtual #2 <Order.getAmount:()Ljava/lang/Integer;>', comment: { fr: 'Int? retourne un objet Integer boxé!', en: 'Int? returns boxed java.lang.Integer!' } },
+      { offset: 4, opcode: 'dup / ifnull L_FALLBACK', comment: { fr: 'Elvis ?: compilé en simple branche ifnull (0 Optional)', en: 'Elvis ?: lowers to plain ifnull branch (0 Optional)' } },
+      { offset: 8, opcode: 'invokevirtual #3 <Integer.intValue:()I>', comment: { fr: 'Déboxe vers int primitif (qty)', en: 'Unboxes back into primitive int qty' } }
+    ],
+    cComparison: {
+      cCode: `// En C: Pointeur NULL possible pour nullable vs valeur par valeur
+struct Order {
+    long id;
+    int *amount; // Équivalent conceptuel de Int? (coût indirection)
+};
+int qty = (order.amount != NULL) ? *order.amount : 1;`,
+      explanation: {
+        fr: "En C, rendre un entier nullable exige un pointeur `int*` (ou une struct flag `{bool present; int val}`). En Kotlin JVM, `Int?` passe automatiquement par un objet Heap `java.lang.Integer`, alors que `Int` reste un primitif pur sur la pile.",
+        en: "In C, nullable int requires `int*` or a tagged struct. In Kotlin JVM, `Int?` boxes to Heap `java.lang.Integer`, while non-null `Int` stays an unboxed Stack primitive."
+      },
+      memoryDifference: {
+        fr: "C: Déréférencer NULL provoque un SEGFAULT matériel. Kotlin: `ifnull` géré par le système de types, ou `NullPointerException` contrôlée avec `!!`.",
+        en: "C: Dereferencing NULL triggers hardware SIGSEGV. Kotlin: compiler-verified nullability or controlled NPE on `!!`."
+      }
+    },
+    executionSteps: [
+      {
+        stepIndex: 0,
+        lineNumber: 1,
+        programCounter: 0,
+        description: {
+          fr: "Instanciation de Order(id=10L, amount=null) : id est primitif (10L), amount vaut null (aucun objet Integer créé grâce à null).",
+          en: "Order(id=10L, amount=null) allocated: primitive long id=10L, reference field amount=null."
+        },
+        stackFrames: [
+          { method: 'checkout(order)', variables: [{ name: 'order', type: 'Order', value: '@0xORD1', isRef: true }], operandStack: [] }
+        ],
+        heapObjects: [
+          { id: 'ord-1', address: '@0xORD1', className: 'Order', fields: { id: '10L (long)', amount: 'null (Integer?)' }, isGarbage: false }
+        ],
+        stdout: []
+      },
+      {
+        stepIndex: 1,
+        lineNumber: 6,
+        programCounter: 8,
+        description: {
+          fr: "Elvis ?: détecte amount == null via `ifnull` et assigne directement la primitive `qty = 1` sur la pile sans allocation Heap.",
+          en: "Elvis ?: catches amount == null via `ifnull` and stores primitive `qty = 1` on Stack."
+        },
+        stackFrames: [
+          { method: 'checkout(order)', variables: [{ name: 'order', type: 'Order', value: '@0xORD1', isRef: true }, { name: 'qty', type: 'int', value: '1' }], operandStack: ['2 (qty * 2)'] }
+        ],
+        heapObjects: [
+          { id: 'ord-1', address: '@0xORD1', className: 'Order', fields: { id: '10L (long)', amount: 'null (Integer?)' }, isGarbage: false }
+        ],
+        stdout: ['[kotlinc] Elvis fallback returned 2 without Optional<T> allocation.']
+      }
+    ],
+    jvmMemoryNotes: {
+      fr: "Contrairement aux Virtual Threads de Java 21 (qui allouent des stack-chunks dans la JVM), une coroutine Kotlin `suspend` génère une machine à états CPS (`ContinuationImpl`) d'environ 100 octets sur le Tas contenant uniquement les variables locales survivant entre deux appels `suspend`.",
+      en: "Unlike Java 21 Virtual Threads (JVM-managed stack chunks), a Kotlin `suspend` function compiles into a ~100B Heap `ContinuationImpl` CPS state machine storing only variables live across suspension points."
+    },
+    commonPitfalls: {
+      fr: [
+        "Utiliser `Int?` ou `List<Int>` dans des boucles chaudes : provoque du boxing massif en `java.lang.Integer` sur le Tas (préférer `IntArray` ou `Int` non-null).",
+        "Abuser de l'opérateur `!!` au lieu de `?.` / `?:` ou des smart casts, annulant la protection null-safety.",
+        "Oublier `@Throws(...)` ou `@JvmOverloads` lorsqu'une librairie Kotlin est appelée depuis du code Java."
+      ],
+      en: [
+        "Using `Int?` or `List<Int>` in tight loops causes heavy `java.lang.Integer` Heap boxing (prefer `IntArray` or non-null `Int`).",
+        "Overusing `!!` defeats compile-time null safety with runtime NullPointerExceptions.",
+        "Forgetting `@Throws(...)` or `@JvmOverloads` when exposing Kotlin APIs to Java callers."
+      ]
+    },
+    quiz: {
+      id: 'q-19',
+      question: {
+        fr: "En bytecode JVM généré par kotlinc, quelle est la différence mémoire majeure entre un paramètre `Int` et `Int?` en Kotlin ?",
+        en: "In JVM bytecode emitted by kotlinc, what is the key memory difference between Kotlin `Int` and `Int?`?"
+      },
+      options: {
+        fr: [
+          "Aucune différence : les deux utilisent le type primitif `int` sur la pile.",
+          "`Int` se compile en primitif `int` (4 octets sur la Pile), tandis que `Int?` doit être boxé en objet `java.lang.Integer` sur le Tas car une primitive JVM ne peut pas être null.",
+          "`Int?` est alloué dans le Metaspace permanent.",
+          "kotlinc enveloppe `Int?` dans `java.util.Optional<Integer>`."
+        ],
+        en: [
+          "Zero difference: both compile to primitive `int` on the Stack.",
+          "`Int` compiles to raw primitive `int` (4 bytes on Stack), whereas `Int?` must box into a Heap `java.lang.Integer` because JVM primitives cannot hold null.",
+          "`Int?` lives permanently in Metaspace.",
+          "kotlinc wraps `Int?` in `java.util.Optional<Integer>`."
+        ]
+      },
+      correctIndex: 1,
+      explanation: {
+        fr: "Exact ! Sur la JVM, un type primitif `int` ne peut jamais contenir `null`. `Int` reste donc un `int` brut, mais `Int?` oblige kotlinc à utiliser `java.lang.Integer` (objet sur le Tas). Même logique inversée : `@JvmInline value class` évite ce boxing quand non-null !",
+        en: "Spot on! JVM primitives cannot represent `null`, so `Int` stays raw `int` while `Int?` boxes to Heap `java.lang.Integer`."
+      }
+    }
   }
 ];
 
